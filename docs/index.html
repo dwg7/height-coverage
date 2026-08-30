@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Height Coverage</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+
+  #panel {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    max-width: 320px;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+    font-size: 13px;
+    line-height: 1.5;
+    color: #222;
+    z-index: 1;
+  }
+  #panel h1 {
+    font-size: 15px;
+    margin: 0 0 6px 0;
+  }
+  #panel p { margin: 0 0 8px 0; }
+  #panel a { color: #1a5fb4; }
+
+  .legend-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .swatch { width: 14px; height: 14px; border-radius: 3px; flex: none; }
+  .swatch.green { background: #2ecc71; }
+  .swatch.yellow { background: #f4c430; }
+  .swatch.gray { background: #999999; opacity: 0.4; }
+  .legend-row.faint { color: #888; font-size: 11px; }
+
+  #stats {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0,0,0,0.15);
+  }
+  #stats .big { font-size: 20px; font-weight: 700; }
+  #stats .sub { font-size: 11px; color: #555; }
+  #stat-breakdown { font-size: 11px; color: #555; margin-top: 4px; }
+
+  #legal {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    font-size: 10px;
+    color: #333;
+    background: rgba(255,255,255,0.7);
+    padding: 2px 6px;
+    border-radius: 4px;
+    z-index: 1;
+  }
+
+  .osm-popup a.edit-link {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 4px 10px;
+    background: #1a5fb4;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .osm-popup h4 { margin: 0 0 4px 0; font-size: 13px; }
+  .osm-popup p { margin: 2px 0; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="panel">
+  <h1>Height Coverage</h1>
+  <p>
+    Buildings shown in <strong>green</strong> already have height or floor-count
+    data in OpenStreetMap. Buildings in <strong>yellow</strong> do not — they are
+    waiting for someone to add it.
+  </p>
+  <div class="legend-row"><span class="swatch green"></span> height / floors known (from OSM)</div>
+  <div class="legend-row"><span class="swatch yellow"></span> not yet mapped</div>
+  <div class="legend-row faint"><span class="swatch gray"></span> not in OSM at all (AI footprint only, for reference)</div>
+  <div id="stats">
+    <div class="big" id="stat-pct">–</div>
+    <div class="sub" id="stat-detail">Loading buildings in view…</div>
+    <div id="stat-breakdown"></div>
+  </div>
+</div>
+
+<div id="legal">
+  &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors ·
+  buildings via <a href="https://docs.overturemaps.org/" target="_blank" rel="noopener">Overture Maps</a>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
