@@ -91,8 +91,8 @@ z=14タイルをヴィエンチャン（12861/7360）・パリ中心部（8299/5
 
 taroverture（Overtureスキーマ）には`@height_source`という出典追跡フィールドが1つしか無く、これは**`height`フィールド専用**で、値は`"OpenStreetMap"` / `"Microsoft ML Buildings"` / `null`のいずれか（`height`が無ければ常に`null`）。`num_floors`専用の出典フィールドは存在しない。そのため：
 
-- `height`があるとき → `@height_source`を直接見て判定できる（確実）。
-- `num_floors`しか無いとき → 専用フィールドが無いので、`sources`（建物ジオメトリ全体の出典リスト）に`provider:"osm"`が含まれるかで代用する。これは「Vientiane・パリ・ロンドンでサンプルした全フィーチャーで、`num_floors`を持つものは例外なくOSM由来だった」という実データ観察に基づく代用であり、スキーマ上の保証ではない（[DECISIONS.md](DECISIONS.md)項目4参照）。
+- `height`があるとき → `@height_source`を直接見て判定できる（確実）。**`height`はOSM以外からも実際に供給される** — パリのサンプルタイルでは、`height`はあるが出典が`Microsoft ML Buildings`のみ（`sources`に`osm`を含まない）という建物が20件観測された。つまりMicrosoftのAI建物検出モデルは輪郭だけでなく高さの推定値も出力しており、`height`が存在すること自体はOSM由来の証拠にならない。だからこそ`@height_source`での確認が必須。
+- `num_floors`しか無いとき → 専用フィールドが無いので、`sources`（建物ジオメトリ全体の出典リスト）に`provider:"osm"`が含まれるかで代用する。これは「Vientiane・パリ・ロンドンでサンプルした全フィーチャーで、`num_floors`を持つものは例外なくOSM由来だった（Microsoft ML Buildings・Google Open Buildingsのどちらも階数までは推定していない）」という実データ観察に基づく代用であり、スキーマ上の保証ではない（[DECISIONS.md](DECISIONS.md)項目4参照）。
 
 **`@geometry_source`（建物の輪郭＝ジオメトリの出典）は高さ・階数の判定には一切使っていない。** 名前が`@height_source`と似ているため混同しやすいが、別物。輪郭がAI検出（Microsoft/Google）由来でも、高さだけがOSM由来というケース（`sources`に`microsoft`と`osm`が両方入る）が実際にパリ・ロンドンで多数観測されており、これが`@geometry_source`ではなく`@height_source`／`sources`の`provider`を見るべき理由でもある。
 - 押し出し高さは`height`（メートル）優先、無ければ`num_floors * 3.66`（Planetilerと同じ係数だが、実際に階数データがある建物にのみ適用する点が異なる）。
