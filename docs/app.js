@@ -271,8 +271,20 @@ function updateStats(map) {
   let withFloors = 0;
   let withHeight = 0;
 
+  // Pass an explicit full-canvas bounding box rather than omitting the
+  // geometry argument. With no geometry, MapLibre v6 has been observed to
+  // silently return zero features for the fill-extrusion layer
+  // (buildings-input) specifically -- it renders correctly, and a
+  // point-based query against it works fine, but the "whole viewport"
+  // shortcut does not. An explicit box works for all three layer types.
+  const canvas = map.getCanvas();
+  const bbox = [
+    [0, 0],
+    [canvas.clientWidth, canvas.clientHeight],
+  ];
+
   for (const layerId of ["buildings-input", "buildings-not-input"]) {
-    const feats = map.queryRenderedFeatures({ layers: [layerId] });
+    const feats = map.queryRenderedFeatures(bbox, { layers: [layerId] });
     for (const f of feats) {
       const key = f.properties.id ?? `${layerId}:${f.id}`;
       if (seen.has(key)) continue;
