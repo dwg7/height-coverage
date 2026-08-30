@@ -1,10 +1,12 @@
 /*
  * Height Coverage
  *
- * Background: stars.optgeo.org "openstreetmap_jp_planet" style, minus its own
- * `building` layer (that layer bakes a synthetic 5m render_height into every
- * building regardless of whether height/levels tags exist, so it cannot be
- * used to distinguish "has data" from "no data" -- see CLAUDE.md).
+ * Background: stars.optgeo.org "positron" style (OpenMapTiles' light/
+ * monochrome basemap, adapted to point at stars's own tiles/glyphs --
+ * see hfu/stars PR #5), minus its own `building` layer (that layer bakes
+ * a synthetic 5m render_height into every building regardless of whether
+ * height/levels tags exist, so it cannot be used to distinguish "has
+ * data" from "no data" -- see CLAUDE.md).
  *
  * Buildings: stars.optgeo.org/overture_buildings, a Martin-proxied remote
  * PMTiles source (Overture Maps buildings schema, built by smellman / Taro
@@ -32,7 +34,7 @@
 import * as maplibregl from "https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.mjs";
 
 const BUILDINGS_URL = "https://stars.optgeo.org/overture_buildings/{z}/{x}/{y}";
-const BASE_STYLE_URL = "https://stars.optgeo.org/style/openstreetmap_jp_planet";
+const BASE_STYLE_URL = "https://stars.optgeo.org/style/positron";
 
 // Default view: Chao Anouvong Stadium area, Vientiane (Chanthabuly, Laos) --
 // the first real-world application of this generic tool. Overridable via

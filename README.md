@@ -39,8 +39,11 @@ No backend, no build step — a static page (`docs/index.html` +
 CDN and composes two tile sources client-side:
 
 - **Background** — [stars.optgeo.org](https://stars.optgeo.org)'s
-  `openstreetmap_jp_planet` style (everything except buildings: roads,
-  land use, water, labels).
+  `positron` style (an OpenMapTiles Positron adaptation hosted for this
+  project — see [hfu/stars#5](https://github.com/hfu/stars/pull/5) — over
+  the same `openstreetmap_jp_planet` tiles): light, near-monochrome, so it
+  doesn't compete with the building coloring. Covers everything except
+  buildings: roads, land use, water, labels.
 - **Buildings** — `tunnel.optgeo.org/martin/buildings` ("taroverture"), a
   tileset built on the [Overture Maps](https://docs.overturemaps.org/)
   buildings schema. Chosen specifically because it separates `height` and

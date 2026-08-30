@@ -255,3 +255,54 @@ is dropped in favor of correct stats. Verified by the user directly:
 disabling globe alone fixed the count (confirming the mechanism), then
 re-enabling globe with `buildings-input` switched to `fill` also fixed
 it while keeping the globe view.
+
+## 10. Switch the background style to Positron, hosted upstream on `stars`
+
+The original background style (`stars.optgeo.org/style/openstreetmap_jp_planet`)
+was a minimal, custom 15-layer style built just for this project's own use.
+Once buildings had their own three-tier coloring, it made sense to upgrade
+the background to something more polished — the user wanted a light,
+near-monochrome basemap (white, not dark) that wouldn't visually compete
+with the green/yellow/gray building fills.
+
+Picked OpenMapTiles' official **Positron** style
+(https://github.com/openmaptiles/positron-gl-style) — the light CARTO-style
+basemap (background `rgb(242,243,240)`, muted grays throughout, no bright
+colors), 50 layers, actively maintained. Confirmed schema compatibility
+before committing to it: every source-layer Positron references (`aeroway`,
+`boundary`, `building`, `landcover`, `landuse`, `park`, `place`,
+`transportation`, `transportation_name`, `water`, `water_name`, `waterway`)
+already exists in `openstreetmap_jp_planet`'s TileJSON `vector_layers`.
+
+Rather than vendor a copy in this repo or fetch it from GitHub at runtime
+(a third-party dependency this project doesn't control), asked the
+`stars.optgeo.org` operator (the same peer session that hosts the
+buildings proxy from decision #9) to host an adapted copy, the same way
+their existing styles work. Opened
+[hfu/stars#5](https://github.com/hfu/stars/pull/5) against their repo,
+per its `CONTRIBUTING.md` gatekeeper flow:
+
+- **Commit 1**: rewrote exactly two fields from the untouched upstream
+  file — `sources.openmaptiles.url` (MapTiler's key-gated endpoint →
+  `stars.optgeo.org/openstreetmap_jp_planet`) and `glyphs` (MapTiler's
+  key-gated font URL → `tile.openstreetmap.jp`'s, matching what the
+  existing `openstreetmap_jp_planet.json` style already uses). Diffed
+  against a pretty-printed copy of the unmodified upstream to confirm
+  only those two fields differed before opening the PR.
+- **Commit 2**: added `["!=", ["get", "maritime"], 1]` to the three
+  country/state boundary layers. Missed this in the first pass — the user
+  had specifically asked for undersea EEZ/maritime boundary lines to be
+  dropped as visual noise (and, in contested waters, a form of political
+  content this project explicitly wants to stay out of — see CLAUDE.md's
+  framing on staying apolitical). `maritime` is a standard OpenMapTiles
+  `boundary` field, confirmed present on `openstreetmap_jp_planet`'s
+  `boundary` source-layer; the `!=` comparison leaves untagged (land)
+  boundaries untouched.
+
+The gatekeeper session reviewed both commits independently (downloaded
+upstream itself and diffed programmatically, rather than trusting the PR
+description) before merging — because it was a *new* file, Martin needed
+a restart to pick it up (existing-file updates apparently don't need
+that; new files are only discovered via Martin's startup directory scan).
+Now live at `https://stars.optgeo.org/style/positron`; `BASE_STYLE_URL`
+in `docs/app.js` points there.

@@ -20,7 +20,7 @@ JICAラオス案件（`hfu/vientiane-basemap-baseline`参照）において、�
 
 ## サイト構成（2層構造）
 
-1. **背景レイヤー**：`stars.optgeo.org`の`openstreetmap_jp_planet`（Planetiler + OpenMapTilesスキーマ）で、建物以外のすべて（道路・地名・水域等）をレンダリングする。スタイルのベースは https://stars.optgeo.org/style/openstreetmap_jp_planet を改造する。
+1. **背景レイヤー**：タイルデータは`stars.optgeo.org`の`openstreetmap_jp_planet`（Planetiler + OpenMapTilesスキーマ）で、建物以外のすべて（道路・地名・水域等）をレンダリングする。スタイルは https://stars.optgeo.org/style/positron （OpenMapTiles公式Positronスタイルをstars.optgeo.org向けに調整したもの。白系・低彩度で建物の色分けを邪魔しない。海上境界は除外済み。経緯は[DECISIONS.md](DECISIONS.md)項目10、hfu/starsリポジトリの[PR #5](https://github.com/hfu/stars/pull/5)参照）を改造する。
 2. **建物レイヤー**：`stars.optgeo.org/overture_buildings`（smellman/Taro Matsuzawa氏が構築したOverture Maps buildingsスキーマのタイル。旧`tunnel.optgeo.org/martin/buildings`と同一データセットで、現在はstars.optgeo.org側がsmellman氏の`dev.smellman.org`上のPMTilesを直接プロキシする形で配信。経緯は[DECISIONS.md](DECISIONS.md)項目9参照）で建物を描画する。ただし`sources`フィールドでOSM以外の出典を持つフィーチャーは無視する。緑／黄色（いずれもフラット表示）の判定もこのレイヤーのデータで行う。
 
 ## 重要な技術的発見（必読）
@@ -108,7 +108,7 @@ taroverture（Overtureスキーマ）には`@height_source`という出典追跡
 
 - 対象：世界中のOSM建物データ全般に適用可能な汎用サイト。特定地域の啓発だけでなく、OSMコミュニティ全体への訴求ツールとしても機能させる。
 - 最初の検証地域：ヴィエンチャン・チャンタブリー郡（AOI）。ただし実装は特定地域にハードコードしない。
-- スタイルの改造元：https://stars.optgeo.org/style/openstreetmap_jp_planet
+- スタイルの改造元：https://stars.optgeo.org/style/positron
 
 ## やらないこと（非目標）
 
@@ -119,7 +119,8 @@ taroverture（Overtureスキーマ）には`@height_source`という出典追跡
 ## 参考リンク
 
 - 背景レイヤー（TileJSON）：https://stars.optgeo.org/openstreetmap_jp_planet
-- 背景レイヤー（スタイル）：https://stars.optgeo.org/style/openstreetmap_jp_planet
+- 背景レイヤー（スタイル、Positron）：https://stars.optgeo.org/style/positron
+- 背景スタイルのPR：https://github.com/hfu/stars/pull/5
 - 建物レイヤー「taroverture」（TileJSON）：https://tunnel.optgeo.org/martin/buildings
 - Planetiler `Building.java`（render_heightの合成ロジック）：https://github.com/openmaptiles/planetiler-openmaptiles/blob/main/src/main/java/org/openmaptiles/layers/Building.java
 - Shortbread schema 1.0（buildingsレイヤーが`dummy`のみである根拠）：https://shortbread-tiles.org/schema/1.0/
