@@ -182,29 +182,31 @@ function setupPanelToggle() {
   });
 }
 
-// Shows the hovered building's raw attributes (bottom-left panel) -- handy
-// for spot-checking why a given building was classified the way it was
-// (e.g. inspecting `sources` / `@height_source` directly on the map).
+// Only the fields the classification logic actually reads: `num_floors`
+// (its mere presence, combined with an osm entry in `sources`, makes a
+// building green -- see HAS_OSM_SOURCE/IS_OSM_ATTRIBUTED above) and the
+// two fields that decide the `height` path (`height` itself and its
+// dedicated source field, `@height_source`). Everything else on the
+// feature is noise for this purpose.
+const HOVER_FIELDS = ["num_floors", "height", "@height_source"];
+
+// Shows just those fields for the hovered building (bottom-left panel) --
+// handy for spot-checking why it was classified green/yellow/gray.
 function showHoverInfo(feature) {
   const panel = document.getElementById("hover-panel");
-  if (!feature) {
+  const rows = feature
+    ? HOVER_FIELDS.filter((k) => feature.properties[k] !== null && feature.properties[k] !== undefined && feature.properties[k] !== "")
+    : [];
+
+  if (rows.length === 0) {
     panel.classList.remove("visible");
     panel.innerHTML = "";
     return;
   }
 
-  const layerTitles = {
-    "buildings-input": "mapped (green)",
-    "buildings-not-input": "not yet mapped (yellow)",
-    "buildings-non-osm": "non-OSM footprint (gray)",
-  };
-
-  const rows = Object.entries(feature.properties)
-    .filter(([, v]) => v !== null && v !== undefined && v !== "")
-    .map(([k, v]) => `<div class="hp-row"><span class="hp-key">${escapeHtml(k)}</span>: ${escapeHtml(String(v))}</div>`)
+  panel.innerHTML = rows
+    .map((k) => `<div class="hp-row"><span class="hp-key">${escapeHtml(k)}</span>: ${escapeHtml(String(feature.properties[k]))}</div>`)
     .join("");
-
-  panel.innerHTML = `<div class="hp-title">${escapeHtml(layerTitles[feature.layer.id] ?? feature.layer.id)}</div>${rows}`;
   panel.classList.add("visible");
 }
 
