@@ -47,7 +47,7 @@ OSMFが採用を進めているShortbread（`shortbread-tiles.org`）の`buildin
 
 ### taroverture（Overture buildingsスキーマ）を採用
 
-`tunnel.optgeo.org/martin/buildings`は、Overture Maps Foundationの建物スキーマをベースにしたタイルで、Taro M.氏が構築したもの（愛称「taroverture」＝tar + Overtureの言葉遊びと思われる）。以下のフィールドを持つ。
+`tunnel.optgeo.org/martin/buildings`（初期実装時点。現在は`stars.optgeo.org/overture_buildings`で配信、詳細は[DECISIONS.md](DECISIONS.md)項目9参照）は、Overture Maps Foundationの建物スキーマをベースにしたタイルで、Taro M.（smellman）氏が構築したもの（愛称「taroverture」＝tar + Overtureの言葉遊びと思われる）。以下のフィールドを持つ。
 
 **buildingレイヤー：**
 ```
@@ -60,7 +60,7 @@ roof_material, roof_orientation, roof_shape, sources, subtype, version
 **building_partレイヤー：** buildingとほぼ同じフィールド構成（`building_id`で親buildingと紐付け）。
 
 **このスキーマが決定的に優れている理由：**
-- `height`と`num_floors`が独立したフィールドとして存在し、Planetilerのような合成値の混入がない（と推定されるが、下記「未確認事項」参照）。
+- `height`と`num_floors`が独立したフィールドとして存在し、Planetilerのような合成値の混入がない（実データで確認済み。下記「フェーズ0の検証結果」参照）。
 - `@height_source`という出典追跡フィールドを持つ。これにより「この高さの値がどこから来たか」を判別できる可能性がある。
 - `@geometry_source`もあり、建物の輪郭自体の出典も追える。
 
@@ -87,6 +87,7 @@ z=14タイルをヴィエンチャン（12861/7360）・パリ中心部（8299/5
 - **黄色（フラット表示）**：`sources`に`provider:"osm"`を含む（＝OSM上に建物自体は存在する）が、上記の緑条件を満たさない建物。「入力を待っている」啓発メッセージの主対象。
 - **極薄いグレー（フラット・低不透明度）**：`sources`に`osm`が一切含まれない建物（Microsoft/GoogleのAI検出フットプリントのみ）。OSMへの入力呼びかけの対象ではないが、「そこに建物があること自体」を背景参考情報として薄く示す（ユーザー要望により追加、[DECISIONS.md](DECISIONS.md)参照）。
 - 3色すべてフラット表示（`fill-extrusion`不使用）。理由は[DECISIONS.md](DECISIONS.md)項目9の追記を参照（globe投影とfill-extrusionレイヤーの組み合わせで`queryRenderedFeatures`のビューポート全体クエリが機能しないバグを実機で確認したため）。
+- 画面内（ビューポート限定、バックエンド集計なし）で緑／黄色の件数と、そのうち階数入力 vs 高さ(m)入力の内訳をUIに表示する。「階数入力の方がフィールド調査で現実的」という仮説を検証するための内訳表示。
 
 ### なぜ`height`と`num_floors`で判定方法が違うのか
 
@@ -96,7 +97,14 @@ taroverture（Overtureスキーマ）には`@height_source`という出典追跡
 - `num_floors`しか無いとき → 専用フィールドが無いので、`sources`（建物ジオメトリ全体の出典リスト）に`provider:"osm"`が含まれるかで代用する。これは「Vientiane・パリ・ロンドンでサンプルした全フィーチャーで、`num_floors`を持つものは例外なくOSM由来だった（Microsoft ML Buildings・Google Open Buildingsのどちらも階数までは推定していない）」という実データ観察に基づく代用であり、スキーマ上の保証ではない（[DECISIONS.md](DECISIONS.md)項目4参照）。
 
 **`@geometry_source`（建物の輪郭＝ジオメトリの出典）は高さ・階数の判定には一切使っていない。** 名前が`@height_source`と似ているため混同しやすいが、別物。輪郭がAI検出（Microsoft/Google）由来でも、高さだけがOSM由来というケース（`sources`に`microsoft`と`osm`が両方入る）が実際にパリ・ロンドンで多数観測されており、これが`@geometry_source`ではなく`@height_source`／`sources`の`provider`を見るべき理由でもある。
-- 画面内（ビューポート限定、バックエンド集計なし）で緑／黄色の件数と、そのうち階数入力 vs 高さ(m)入力の内訳をUIに表示する。「階数入力の方がフィールド調査で現実的」という仮説を検証するための内訳表示。
+
+## UI / 技術スタック
+
+- MapLibre GL JS 6.6.0（CDN配信のESモジュール。v6でUMDバンドルが廃止されたため、`docs/app.js`は`<script type="module">`として読み込み、`import * as maplibregl from ".../maplibre-gl.mjs"`で参照する）。
+- `globe`投影（`style.projection = {type: "globe"}`）。世界中どこでも使える汎用ツールであることを示す意図。ズーム5前後で自動的にフラットなmercatorへフェードする。
+- URLハッシュは`hash: "map"`設定により`#map=z/lat/lng/bearing/pitch`の形式（他の用途と衝突しないよう名前空間化）。
+- 左上パネル（凡例・統計）はヘッダークリックで折りたたみ可能。
+- 左下に、カーソルが乗っている建物の生の属性（`num_floors`・`height`・`@height_source`。ただし`@height_source`は`"OpenStreetMap"`以外の場合のみ表示）を出す小さなパネルがあり、分類ロジックの裏付けをその場で確認できる。
 
 ## インフラ変更履歴（解決済み・要参照）
 
@@ -121,7 +129,8 @@ taroverture（Overtureスキーマ）には`@height_source`という出典追跡
 - 背景レイヤー（TileJSON）：https://stars.optgeo.org/openstreetmap_jp_planet
 - 背景レイヤー（スタイル、Positron）：https://stars.optgeo.org/style/positron
 - 背景スタイルのPR：https://github.com/hfu/stars/pull/5
-- 建物レイヤー「taroverture」（TileJSON）：https://tunnel.optgeo.org/martin/buildings
+- 建物レイヤー（TileJSON、現行）：https://stars.optgeo.org/overture_buildings
+- 建物レイヤー「taroverture」の元データ出典（smellman氏のPMTiles直配信）：https://dev.smellman.org/static/overture-latest/buildings.pmtiles（旧`tunnel.optgeo.org/martin/buildings`は個人トンネルのダウンにより現在は不使用。経緯は[DECISIONS.md](DECISIONS.md)項目8・9参照）
 - Planetiler `Building.java`（render_heightの合成ロジック）：https://github.com/openmaptiles/planetiler-openmaptiles/blob/main/src/main/java/org/openmaptiles/layers/Building.java
 - Shortbread schema 1.0（buildingsレイヤーが`dummy`のみである根拠）：https://shortbread-tiles.org/schema/1.0/
 - Overture Maps Foundation：https://docs.overturemaps.org/

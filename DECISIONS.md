@@ -209,8 +209,24 @@ of two separate personal endpoints.
 
 ### Addendum: globe projection + fill-extrusion breaks viewport stats
 
-After deploying MapLibre 6.6.0 with globe projection (see the MapLibre
-upgrade entry below) and switching the buildings source to
+Around the same time as the buildings-source switch above, also upgraded
+MapLibre GL JS from 4.7.1 to 6.6.0 (the user's request — "かなり古いよね" —
+it really was, and a major-version jump was needed since 5.x/6.x moved
+fast) and enabled globe projection (`style.projection = {type: "globe"}`)
+on the reasoning that a tool explicitly framed as worldwide, not tied to
+one region, should look the part when zoomed out; MapLibre fades a globe
+back to flat mercator by about zoom 5 regardless, so it was assumed to be
+a purely cosmetic, zero-risk addition. v6 also **dropped the UMD bundle
+entirely** — it ships ESM-only now (`maplibre-gl.mjs`, no more
+`window.maplibregl` global) — so `docs/index.html`'s script tag became
+`<script type="module" src="app.js">` and `app.js` gained a top-of-file
+`import * as maplibregl from ".../maplibre-gl.mjs"`. Separately, took the
+opportunity to switch `hash: true` to `hash: "map"` so the URL fragment
+is namespaced (`#map=z/lat/lng/bearing/pitch`) instead of a bare,
+collision-prone hash.
+
+That "purely cosmetic" assumption about globe was wrong. After this
+upgrade and switching the buildings source to
 `stars.optgeo.org/overture_buildings`, a user reported the stats panel's
 "N with height data" count reading `0` no matter where they panned —
 including locations independently confirmed (by decoding the same
@@ -306,3 +322,22 @@ a restart to pick it up (existing-file updates apparently don't need
 that; new files are only discovered via Martin's startup directory scan).
 Now live at `https://stars.optgeo.org/style/positron`; `BASE_STYLE_URL`
 in `docs/app.js` points there.
+
+## 11. Collapsible info panel + a hover panel scoped to only the fields that matter
+
+The top-left info panel (legend + stats) can be collapsed to just its
+header — useful once you already know what the colors mean and want the
+map itself unobstructed.
+
+Added a second, bottom-left panel that shows the raw attributes of
+whichever building is under the cursor, for spot-checking *why* a
+building was classified the way it was without opening devtools. First
+pass showed every property on the feature (`sources`, `@geometry_source`,
+`id`, `version`, ...) — trimmed down after review to only what
+`IS_OSM_ATTRIBUTED` actually reads: `num_floors`, `height`, and
+`@height_source` (and the latter only when it's *not* `"OpenStreetMap"` —
+when it is, the building is green by definition and the field is
+redundant; it only earns its place for the rarer case of a
+non-OSM-attributed height, e.g. Microsoft ML Buildings, which otherwise
+renders identically to "no height at all"). Kept deliberately tiny
+(no title, ~220px max width) so it can't crowd out the map.

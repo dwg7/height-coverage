@@ -6,57 +6,87 @@ Read [CLAUDE.md](CLAUDE.md) first for the spec/background, then
 
 ## Current state
 
-MVP is built and working: `docs/index.html` + `docs/app.js`, a static
-MapLibre GL JS page with no build step. Manually verified in-browser
-(Claude's browser preview tool, `http.server` on `docs/`) that:
+Live and working: https://dwg7.github.io/height-coverage/ — a static
+MapLibre GL JS 6.6.0 page (`docs/index.html` + `docs/app.js`, loaded as an
+ES module, no build step). Confirmed working end-to-end this session,
+including by the user directly in a real browser (this session's own
+browser automation tool became unusable partway through — see the caveat
+at the bottom of this file):
 
-- The background style loads from `stars.optgeo.org` with its own
-  `building` layer stripped out.
-- The three-tier building classification (green/yellow/faint-gray) renders
-  correctly for the Vientiane AOI, with sane counts (roughly 0.2% mapped,
-  matching the premise of the whole site).
-- The viewport stats panel updates on `moveend` and shows the floor-count
-  vs. exact-height breakdown.
-- Clicking a yellow building opens a popup linking out to the iD editor.
+- Background: `stars.optgeo.org`'s `positron` style (OpenMapTiles'
+  official light/near-monochrome basemap, adapted for stars — see
+  [hfu/stars#5](https://github.com/hfu/stars/pull/5) — with maritime
+  boundary lines filtered out).
+- Buildings: `stars.optgeo.org/overture_buildings`, split into three flat
+  fill layers (green/yellow/faint-gray) per [DECISIONS.md](DECISIONS.md)
+  #4-5. Globe projection is on; all three layers had to be flat fills, not
+  fill-extrusion, because of a MapLibre v6 + globe query bug — see
+  DECISIONS.md #9's addendum.
+- Viewport stats panel (collapsible) with the floor-count-vs-height
+  breakdown, and a small hover panel showing the classification-relevant
+  raw attributes of whatever building is under the cursor. See
+  DECISIONS.md #11.
+- Click-to-edit popup on yellow buildings linking to the iD editor,
+  nudging toward floor count over exact height.
 
-Deployed: pushed to `main` and GitHub Pages enabled (branch `main`, path
-`/docs`) — live at https://dwg7.github.io/height-coverage/.
+## This session's arc, briefly
 
-**Update:** the buildings source was switched from `tunnel.optgeo.org`
-(hfu's personal Cloudflare Tunnel, which went offline mid-session after a
-network reconfiguration — see DECISIONS.md #8 for that whole debugging
-trail, including two wrong theories along the way) to
-`stars.optgeo.org/overture_buildings`, which proxies the same dataset
-directly from smellman's (Taro Matsuzawa's) own PMTiles hosting at
-`dev.smellman.org`. Verified independently: identical schema, identical
-`planetiler:githash`, byte-identical tile content for the Vientiane sample
-coordinate. See DECISIONS.md #9. `docs/app.js`'s `BUILDINGS_URL` now
-points at the new source; this is no longer a known issue, just history.
+Roughly in order: built the MVP (three-tier classification, verified
+against real decoded tiles across Vientiane/Paris/London) → deployed to
+GitHub Pages → the buildings tile source (`tunnel.optgeo.org`, hfu's
+personal Cloudflare Tunnel) went offline mid-session from an unrelated
+network change on that machine → traced it to the actual origin machine
+(not a CORS/Access-policy issue, two wrong theories along the way, see
+DECISIONS.md #8) → switched to `stars.optgeo.org/overture_buildings`,
+which proxies the same dataset from smellman's own hosting, removing the
+dependency on a single personal machine (DECISIONS.md #9) → added the
+collapsible/hover UI panels → upgraded MapLibre 4.7.1 → 6.6.0 and turned
+on globe projection → that combination broke viewport-wide stats querying
+for the green layer specifically, took a few wrong turns to pin down
+(zoomLevelsToOverscale, then an explicit bbox, then finally identifying
+globe + fill-extrusion as the actual mechanism) → fixed by keeping globe
+and rendering green as flat fill instead of extruded (DECISIONS.md #9
+addendum) → upgraded the background from a minimal custom style to
+OpenMapTiles' Positron, hosted on `stars.optgeo.org` via a PR to
+`hfu/stars` (DECISIONS.md #10).
 
 ## Known issues / open threads
 
-1. **`building_part` unused.** taroverture's `building_part` layer often has
-   *more* height coverage than the parent `building` footprint (observed
-   96% in London vs. 41% on `building` alone) — likely because
-   multi-section buildings get per-section height/levels tags in OSM. This
-   site currently ignores it entirely for simplicity. Worth a follow-up if
-   the "waiting for input" framing needs to account for buildings that are
-   already partially mapped via their parts.
+1. **`building_part` unused.** taroverture's `building_part` layer often
+   has *more* height coverage than the parent `building` footprint
+   (observed 96% in London vs. 41% on `building` alone) — likely because
+   multi-section buildings get per-section height/levels tags in OSM.
+   This site currently ignores it entirely for simplicity. Worth a
+   follow-up if the "waiting for input" framing needs to account for
+   buildings that are already partially mapped via their parts.
 
-2. **No automated tests.** Verification so far is manual browser QA only.
-   If this project grows, consider at least a smoke test that fetches the
-   base style + a known tile and asserts the classification counts are
-   sane (regression guard against taroverture schema changes upstream).
+2. **No automated tests.** Verification so far is manual browser QA
+   (plus, this session, independent Python verification of the raw tile
+   data — see DECISIONS.md #4 and #9 — used specifically *because* the
+   browser tool became unreliable). If this project grows, consider at
+   least a smoke test that fetches the base style + a known tile and
+   asserts the classification counts are sane (regression guard against
+   upstream schema changes).
 
-3. **Only tested in the Claude Code browser preview tool** (Chromium-based).
-   Hasn't been checked on mobile viewports or Safari/Firefox. Also, that
-   browser tool itself became unreliable after extended use in this
-   session — tabs would get stuck with MapLibre's style/worker pipeline
-   never completing, unrelated to the actual site or tile server (the
-   real, deployed GitHub Pages site worked fine once given enough patience
-   or a fresh tab). If a future session sees the map stuck on "Loading
-   buildings in view…" for a long time, try a brand new tab / restarted
-   preview server before assuming the app or tile source regressed.
+3. **This session's browser automation tool degraded badly and never
+   recovered.** After extended use (many tabs, many hours), it reached a
+   state where it could not load *any* MapLibre map — confirmed by
+   testing MapLibre's own official demo style in complete isolation, in a
+   freshly restarted browser process, with no other tabs open. Basic
+   WebGL2 and Worker/module-Worker capability all checked out fine
+   individually; the failure was specific to MapLibre's init pipeline
+   never completing (`isStyleLoaded()` stuck `false` indefinitely, no
+   error thrown). Several fixes in the back half of this session
+   (queryRenderedFeatures behavior, the globe/fill-extrusion bug, the
+   Positron style swap) were therefore verified by *reasoning + targeted
+   Python-side data checks* rather than a live screenshot, with the user
+   confirming the actual visual result in their own separate browser. If
+   a future session sees a stuck "Loading buildings in view…" or a map
+   that never renders, try a brand new tab and a fully restarted preview
+   server before assuming the app or a tile source regressed — and if
+   that doesn't help either, don't keep spending cycles on it; ask the
+   user to check in their own browser instead, the way this session
+   eventually did.
 
 ## Things intentionally left out of scope (see CLAUDE.md's 非目標)
 
@@ -66,6 +96,8 @@ points at the new source; this is no longer a known issue, just history.
 - No hardcoded place name in the tool's core logic — Vientiane is only the
   *default* view (see `DEFAULT_VIEW` in `docs/app.js`), not baked into the
   classification or rendering logic.
+- No 3D building extrusion — dropped this session in favor of correct
+  stats with globe projection on; see DECISIONS.md #9's addendum.
 
 ## How to resume local development
 
@@ -74,4 +106,22 @@ python3 -m http.server 8123 --directory docs
 ```
 
 or, if using Claude Code's browser preview tooling, `.claude/launch.json`
-already wires up a `docs-server` configuration for this.
+already wires up a `docs-server` configuration for this. Because
+`app.js` is an ES module, browsers can cache it more aggressively across
+reloads than a classic script — append a cache-busting query string
+(`?v=2`) when iterating and not seeing your edits take effect.
+
+## Who to talk to about shared infrastructure
+
+Two pieces of this depend on infrastructure this repo doesn't own:
+
+- **`stars.optgeo.org`** (background style + buildings proxy): operated
+  by a separate Claude Code session named `stars-21` in this environment
+  (its own repo is `hfu/stars`, contribution flow documented in that
+  repo's `CONTRIBUTING.md`). This session reached it via `SendMessage` to
+  `stars-21` and, for the Positron style, by opening
+  [hfu/stars#5](https://github.com/hfu/stars/pull/5) directly.
+- **`dev.smellman.org`** (the actual origin of the Overture buildings
+  PMTiles that `stars.optgeo.org/overture_buildings` proxies): smellman's
+  (Taro Matsuzawa's) own server, reached only indirectly via the stars
+  proxy — nothing in this project talks to it directly.
