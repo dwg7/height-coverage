@@ -20,55 +20,22 @@ MapLibre GL JS page with no build step. Manually verified in-browser
 - Clicking a yellow building opens a popup linking out to the iD editor.
 
 Deployed: pushed to `main` and GitHub Pages enabled (branch `main`, path
-`/docs`) — live at https://dwg7.github.io/height-coverage/. **However, see
-issue #1 below: the buildings layer does not actually load for real
-visitors right now** because of an upstream CORS/Cloudflare problem on
-`tunnel.optgeo.org`, discovered only after deploying (the dev-loop testing
-that validated the classification logic used `curl` checks that happened
-to not trigger it). The background map, panel, and stats UI all load fine;
-only the building tiles fail.
+`/docs`) — live at https://dwg7.github.io/height-coverage/.
+
+**Update:** the buildings source was switched from `tunnel.optgeo.org`
+(hfu's personal Cloudflare Tunnel, which went offline mid-session after a
+network reconfiguration — see DECISIONS.md #8 for that whole debugging
+trail, including two wrong theories along the way) to
+`stars.optgeo.org/overture_buildings`, which proxies the same dataset
+directly from smellman's (Taro Matsuzawa's) own PMTiles hosting at
+`dev.smellman.org`. Verified independently: identical schema, identical
+`planetiler:githash`, byte-identical tile content for the Vientiane sample
+coordinate. See DECISIONS.md #9. `docs/app.js`'s `BUILDINGS_URL` now
+points at the new source; this is no longer a known issue, just history.
 
 ## Known issues / open threads
 
-1. **BLOCKING: the machine behind `tunnel.optgeo.org` / `jaxa.optgeo.org`
-   is offline — the live site's buildings layer currently does not load.**
-   Confirmed live on `https://dwg7.github.io/height-coverage/` (a user
-   reported CORS console errors). Two earlier theories in this doc's
-   history were wrong (one specific tile being flaky; then "any `Origin`
-   header gets blocked") — see DECISIONS.md #8 for the full trail. The
-   actual cause, confirmed by hfu: `ssh jaxa.optgeo.org` (their normal way
-   of reaching that machine, an SSH-over-WebSocket gateway on the same
-   host as the Martin tile server) fails with `websocket: bad handshake`,
-   and hfu recalled doing network reconfiguration on that machine around
-   the same time — so the `cloudflared` tunnel connector most likely just
-   hasn't reconnected since. `stars.optgeo.org` (separate, healthy
-   infrastructure) is unaffected.
-
-   **This is expected fallout of a network change on hfu's own machine,
-   not a mystery outage or a bug in this app** — nothing to fix in this
-   repo. Once hfu reconnects that machine's network / restarts
-   `cloudflared`, it should resolve itself. Sanity-check with:
-   ```bash
-   curl -o /dev/null -w '%{http_code}\n' "https://jaxa.optgeo.org/"
-   curl -o /dev/null -w '%{http_code}\n' \
-     "https://tunnel.optgeo.org/martin/buildings/14/9999/9999"
-   ```
-   Both return `530` as of this writing (2026-08-30); both should return
-   something other than `530` once the machine is back (a real SSH
-   handshake / non-cached `200` respectively — that specific tile
-   coordinate is picked deliberately because it's out of any real
-   geographic range, so a `200` there can only come from a live origin,
-   never a stale cache).
-
-   Once it's back, the site should work as already verified during
-   development — the classification/rendering/stats logic was confirmed
-   correct against real decoded tiles across Vientiane/Paris/London before
-   this outage was noticed, and `docs/app.js` now also shows a clear
-   in-app message ("Buildings layer unavailable right now...") instead of
-   hanging on "Loading…" when the buildings source fails to load, so
-   future outages like this are less confusing for visitors.
-
-2. **`building_part` unused.** taroverture's `building_part` layer often has
+1. **`building_part` unused.** taroverture's `building_part` layer often has
    *more* height coverage than the parent `building` footprint (observed
    96% in London vs. 41% on `building` alone) — likely because
    multi-section buildings get per-section height/levels tags in OSM. This
@@ -76,13 +43,20 @@ only the building tiles fail.
    the "waiting for input" framing needs to account for buildings that are
    already partially mapped via their parts.
 
-3. **No automated tests.** Verification so far is manual browser QA only.
+2. **No automated tests.** Verification so far is manual browser QA only.
    If this project grows, consider at least a smoke test that fetches the
    base style + a known tile and asserts the classification counts are
    sane (regression guard against taroverture schema changes upstream).
 
-4. **Only tested in the Claude Code browser preview tool** (Chromium-based).
-   Hasn't been checked on mobile viewports or Safari/Firefox.
+3. **Only tested in the Claude Code browser preview tool** (Chromium-based).
+   Hasn't been checked on mobile viewports or Safari/Firefox. Also, that
+   browser tool itself became unreliable after extended use in this
+   session — tabs would get stuck with MapLibre's style/worker pipeline
+   never completing, unrelated to the actual site or tile server (the
+   real, deployed GitHub Pages site worked fine once given enough patience
+   or a fresh tab). If a future session sees the map stuck on "Loading
+   buildings in view…" for a long time, try a brand new tab / restarted
+   preview server before assuming the app or tile source regressed.
 
 ## Things intentionally left out of scope (see CLAUDE.md's 非目標)
 

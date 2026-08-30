@@ -6,8 +6,9 @@
  * building regardless of whether height/levels tags exist, so it cannot be
  * used to distinguish "has data" from "no data" -- see CLAUDE.md).
  *
- * Buildings: tunnel.optgeo.org/martin/buildings ("taroverture", an Overture
- * Maps buildings schema tileset). Split into three layers:
+ * Buildings: stars.optgeo.org/overture_buildings, a Martin-proxied remote
+ * PMTiles source (Overture Maps buildings schema, built by smellman / Taro
+ * Matsuzawa). Split into three layers:
  *
  *   - green (extruded): height/floor data traces back to OpenStreetMap --
  *       `height` present with `@height_source === "OpenStreetMap"`, or
@@ -24,7 +25,7 @@
  * See DECISIONS.md #4-5 for how this was derived from decoded sample tiles.
  */
 
-const BUILDINGS_URL = "https://tunnel.optgeo.org/martin/buildings/{z}/{x}/{y}";
+const BUILDINGS_URL = "https://stars.optgeo.org/overture_buildings/{z}/{x}/{y}";
 const BASE_STYLE_URL = "https://stars.optgeo.org/style/openstreetmap_jp_planet";
 
 // Default view: Chao Anouvong Stadium area, Vientiane (Chanthabuly, Laos) --

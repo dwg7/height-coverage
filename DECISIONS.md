@@ -158,3 +158,51 @@ host needs to check whether it's powered on and networked, and restart
 `cloudflared` (or reboot) if not. See HANDOVER.md for the current status.
 No further client-side investigation is useful here — once the tunnel
 reconnects, the site should work exactly as verified during development.
+
+## 9. Switch the buildings source to `stars.optgeo.org/overture_buildings` — resolves #8 entirely
+
+Rather than wait on the personal machine behind `tunnel.optgeo.org` to come
+back, hfu pointed out that the Overture buildings dataset it was serving
+was itself built by smellman (Taro Matsuzawa) — `tunnel.optgeo.org` was
+only ever proxying smellman's own tileset, not producing it.
+
+Found that smellman hosts the same dataset directly, as static PMTiles,
+at `https://dev.smellman.org/static/overture-latest/` — `buildings.pmtiles`
+(168GB) plus `base`, `addresses`, `divisions`, `places`, `transportation`.
+Verified before asking anyone to change infrastructure:
+
+- **Same dataset, not just similarly named:** the PMTiles metadata's
+  `planetiler:githash` (`0e5588c4a6e8c29a270a33afe8df62027d889604`),
+  schema (the `@geometry_source`/`@height_source`/`sources` fields), and
+  actual decoded tile contents for Vientiane and Paris sample tiles are
+  byte-for-byte identical in substance to what `tunnel.optgeo.org` served
+  (e.g. Vientiane: 8631 buildings, 20 with height/floor data, both times).
+- **Already correctly configured for browser use:** `curl -r 0-1023` on
+  `buildings.pmtiles` returns `206 Partial Content` (range requests work,
+  which is how PMTiles avoids downloading the whole 168GB file) and
+  `Access-Control-Allow-Origin` reflects whatever `Origin` is sent, with
+  `Access-Control-Allow-Credentials: true` — permissive enough to work
+  from any site including GitHub Pages, unlike `tunnel.optgeo.org`.
+
+Asked the `stars-21` session (which operates stars.optgeo.org) to proxy
+these PMTiles the same way it already proxies other remote sources like
+`bvmap` and `openstreetmap_jp_planet` — Martin's `pmtiles.sources`
+mechanism, which serves range requests straight through to the remote
+file with no local copy or extra storage/bandwidth cost. hfu confirmed
+this with stars-21 directly. Result: six new sources are live —
+`stars.optgeo.org/{overture_buildings,overture_base,overture_addresses,overture_divisions,overture_places,overture_transportation}`.
+
+Re-verified independently after the switch: `overture_buildings`'s
+TileJSON matches, a live tile fetch for the same Vientiane coordinate
+returns the exact same byte count (2,477,274 bytes) as the original
+`tunnel.optgeo.org` fetch from earlier in this project, and decodes to the
+same 8631/20 building counts. `docs/app.js`'s `BUILDINGS_URL` now points
+here instead of `tunnel.optgeo.org`.
+
+**Why this is strictly better than the old setup**, beyond just fixing the
+outage: this data no longer depends on any personal machine staying
+online and its Cloudflare Tunnel staying connected — it's proxied
+straight from smellman's own host, with stars.optgeo.org (already a more
+established piece of shared infrastructure this project depends on
+anyway for the background layer) as the single point of contact instead
+of two separate personal endpoints.

@@ -21,7 +21,7 @@ JICAラオス案件（`hfu/vientiane-basemap-baseline`参照）において、�
 ## サイト構成（2層構造）
 
 1. **背景レイヤー**：`stars.optgeo.org`の`openstreetmap_jp_planet`（Planetiler + OpenMapTilesスキーマ）で、建物以外のすべて（道路・地名・水域等）をレンダリングする。スタイルのベースは https://stars.optgeo.org/style/openstreetmap_jp_planet を改造する。
-2. **建物レイヤー**：`tunnel.optgeo.org/martin/buildings`（通称「taroverture」、Taro M.氏が構築したOverture Maps buildingsスキーマのタイル）で建物を描画する。ただし`sources`フィールドでOSM以外の出典を持つフィーチャーは無視する。緑（3D押し出し）／黄色（フラット）の判定もこのレイヤーのデータで行う。
+2. **建物レイヤー**：`stars.optgeo.org/overture_buildings`（smellman/Taro Matsuzawa氏が構築したOverture Maps buildingsスキーマのタイル。旧`tunnel.optgeo.org/martin/buildings`と同一データセットで、現在はstars.optgeo.org側がsmellman氏の`dev.smellman.org`上のPMTilesを直接プロキシする形で配信。経緯は[DECISIONS.md](DECISIONS.md)項目9参照）で建物を描画する。ただし`sources`フィールドでOSM以外の出典を持つフィーチャーは無視する。緑（3D押し出し）／黄色（フラット）の判定もこのレイヤーのデータで行う。
 
 ## 重要な技術的発見（必読）
 
@@ -89,13 +89,11 @@ z=14タイルをヴィエンチャン（12861/7360）・パリ中心部（8299/5
 - 押し出し高さは`height`（メートル）優先、無ければ`num_floors * 3.66`（Planetilerと同じ係数だが、実際に階数データがある建物にのみ適用する点が異なる）。
 - 画面内（ビューポート限定、バックエンド集計なし）で緑／黄色の件数と、そのうち階数入力 vs 高さ(m)入力の内訳をUIに表示する。「階数入力の方がフィールド調査で現実的」という仮説を検証するための内訳表示。
 
-## 既知のインフラ上の制約（重大・要対応）
+## インフラ変更履歴（解決済み・要参照）
 
-**`tunnel.optgeo.org`（および同じマシン上の`jaxa.optgeo.org`）のオリジンサーバーが現在ダウンしている。** GitHub Pages公開後、実際に`https://dwg7.github.io`から建物レイヤーが読み込めないというCORSエラーが報告された。当初「`Origin`ヘッダー付きリクエストを一律拒否している」と診断したが、これは誤りだった。真の原因は、hfu氏が管理用に使う`ssh jaxa.optgeo.org`（同じマシン上のWebSocket経由SSHゲートウェイ）が`websocket: bad handshake`で失敗することから判明した、**マシン自体（またはその`cloudflared`接続）がCloudflareエッジから切断されている**という状態。
+初期実装では建物レイヤーに`tunnel.optgeo.org/martin/buildings`（hfu氏個人のCloudflare Tunnel経由）を使っていたが、GitHub Pages公開後にそのマシンがネットワーク切り替えの影響でダウンし、実ブラウザからCORSエラーで建物が読み込めなくなった（原因の切り分け過程で2回誤診断している。詳細は[DECISIONS.md](DECISIONS.md)項目8）。
 
-`stars.optgeo.org`は同じCloudflareゾーン（DNS上は同じIP）だが別の健全なインフラ上で動いており、未キャッシュのタイルでも問題なく応答する。一方`tunnel.optgeo.org`/`jaxa.optgeo.org`は、以前の検証セッションで`curl`が偶然キャッシュを温めていた一部のURLだけがCloudflareのエッジキャッシュから応答し、それ以外（新規タイル・`/martin/catalog`・SSHなど、実際にオリジンへ到達する必要があるものすべて）は`530`エラーになる。
-
-これはこのアプリのコードでは対応不可能な、hfu氏／Taro M.氏側のマシンの運用上の問題。誰かが物理的／リモートでそのマシンにアクセスし、ネットワーク接続と`cloudflared`プロセスの状態を確認・再起動する必要がある。詳細な検証の経緯（2回の誤診断を含む）は[DECISIONS.md](DECISIONS.md)の項目8、対応状況は[HANDOVER.md](HANDOVER.md)を参照。
+調査の結果、このOverture buildingsデータセットは元々smellman（Taro Matsuzawa）氏が構築したもので、`tunnel.optgeo.org`はそれを単に個人トンネル経由でプロキシしていただけと判明。smellman氏本人が`https://dev.smellman.org/static/overture-latest/`にPMTiles形式（`buildings.pmtiles`ほか）で直接公開していることを発見し、stars.optgeo.orgの運用エージェントに依頼して、Martinの`pmtiles.sources`機構（`bvmap`や`openstreetmap_jp_planet`と同じ仕組み、リモートファイルへのrangeリクエストによるプロキシでローカルコピー不要）でこれをプロキシしてもらった。現在は`stars.optgeo.org/overture_buildings`を建物レイヤーとして使用している（スキーマ・データは`tunnel.optgeo.org`時代と完全に同一であることを`planetiler:githash`と実タイルのデコード結果で確認済み）。経緯の全記録は[DECISIONS.md](DECISIONS.md)項目9、対応状況は[HANDOVER.md](HANDOVER.md)を参照。
 
 ## スコープ
 
