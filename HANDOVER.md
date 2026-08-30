@@ -19,26 +19,49 @@ MapLibre GL JS page with no build step. Manually verified in-browser
   vs. exact-height breakdown.
 - Clicking a yellow building opens a popup linking out to the iD editor.
 
-Not yet deployed — GitHub Pages needs to be enabled for this repo (Settings
-→ Pages → Deploy from a branch → `main` / `docs`), and this session's
-changes need to be pushed for that to take effect. Was authorized to push
-in this session; check `git log` / `git status` to see if that already
-happened by the time you're reading this.
+Deployed: pushed to `main` and GitHub Pages enabled (branch `main`, path
+`/docs`) — live at https://dwg7.github.io/height-coverage/. **However, see
+issue #1 below: the buildings layer does not actually load for real
+visitors right now** because of an upstream CORS/Cloudflare problem on
+`tunnel.optgeo.org`, discovered only after deploying (the dev-loop testing
+that validated the classification logic used `curl` checks that happened
+to not trigger it). The background map, panel, and stats UI all load fine;
+only the building tiles fail.
 
 ## Known issues / open threads
 
-1. **`tunnel.optgeo.org` intermittent failures.** During testing, the Paris
-   center tile (`14/8299/5636`) reliably 530'd from Cloudflare when
-   requested with an `Origin` header (i.e. from a real browser context),
-   while the same URL succeeded without one, and an unrelated tile
-   (Vientiane) succeeded either way. Documented as an accepted upstream
-   limitation (DECISIONS.md #8), not something this app works around. If
-   this recurs for other cities/tiles, it's worth spot-checking with:
+1. **BLOCKING: `tunnel.optgeo.org` rejects every Origin-bearing request —
+   the live site's buildings layer currently does not load for real users.**
+   Confirmed live on `https://dwg7.github.io/height-coverage/` (a user
+   reported CORS console errors) and root-caused: any request to
+   `tunnel.optgeo.org` that carries an `Origin` header — any value at all,
+   not just github.io's — gets `530` from Cloudflare, while the identical
+   request with no `Origin` header succeeds. Verified this holds even for
+   a never-before-fetched tile and for `/martin/catalog`, so it isn't a
+   caching artifact. See DECISIONS.md #8 for the full curl transcript.
+
+   Since every real browser `fetch()` to a cross-origin URL always sends
+   `Origin`, **this cannot be worked around from this app's client-side
+   code.** It needs to be fixed upstream, on the Cloudflare
+   zone/tunnel/Access config in front of `tunnel.optgeo.org` — almost
+   certainly a WAF/Access rule that's rejecting Origin-bearing requests.
+
+   **Action needed:** reach out to whoever administers that Cloudflare
+   setup (Taro M., per CLAUDE.md) and ask them to check for an Access
+   policy or firewall rule blocking requests with an `Origin` header, or
+   to add an explicit CORS allow-list. Re-test with:
    ```bash
    curl -o /dev/null -w '%{http_code}\n' -H "Origin: https://dwg7.github.io" \
-     "https://tunnel.optgeo.org/martin/buildings/{z}/{x}/{y}"
+     "https://tunnel.optgeo.org/martin/buildings/14/12861/7360"
    ```
-   before assuming it's a regression in this code.
+   This should return `200` once fixed; it returns `530` as of this
+   writing (2026-08-30).
+
+   No code changes were made to work around this — there isn't a
+   client-side fix. Once the upstream config is corrected, the site
+   should work as already verified during development (before this was
+   caught, the classification/rendering/stats logic was confirmed correct
+   against real decoded tiles across Vientiane/Paris/London).
 
 2. **`building_part` unused.** taroverture's `building_part` layer often has
    *more* height coverage than the parent `building` footprint (observed

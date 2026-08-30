@@ -137,6 +137,19 @@ async function main() {
 
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
 
+  // The buildings tile source (tunnel.optgeo.org) is a personal/dev
+  // endpoint with known upstream reliability issues -- see DECISIONS.md #8.
+  // Surface that plainly instead of leaving the panel stuck on "Loading…"
+  // forever when its tiles fail to fetch.
+  let buildingsErrorShown = false;
+  map.on("error", (e) => {
+    if (e.sourceId !== "buildings" || buildingsErrorShown) return;
+    buildingsErrorShown = true;
+    document.getElementById("stat-detail").textContent =
+      "Buildings layer unavailable right now (upstream tile server issue) -- background map still works.";
+    document.getElementById("stat-breakdown").textContent = "";
+  });
+
   map.on("load", () => {
     updateStats(map);
     map.on("moveend", () => updateStats(map));

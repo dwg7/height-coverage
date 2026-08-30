@@ -100,19 +100,45 @@ CDN, fetching the background style and building tiles directly from
 `stars.optgeo.org` / `tunnel.optgeo.org` client-side. Simplest possible
 deployment for a public awareness site with no dynamic server-side needs.
 
-## 8. Accept `tunnel.optgeo.org` as a fragile dependency, don't try to fix it
+## 8. `tunnel.optgeo.org` blocks every request that carries an `Origin` header (correction: not "flaky", 100% reproducible)
 
-While testing, one specific tile (Paris center) reliably returned
-Cloudflare error 530 when requested with a browser-like `Origin` header,
-while the exact same URL returned 200 without one, and while an
-unrelated tile (Vientiane) returned 200 in both cases. This points to
-edge-cached failure state at Cloudflare for that one tile/origin
-combination, not a bug in this app's code — `tunnel.optgeo.org` is
-explicitly a personal/dev tunnel (per its name and per CLAUDE.md's
-description of its maintainer), not a production CDN.
+An earlier version of this entry mischaracterized this as one specific
+tile (Paris) being intermittently flaky. That was wrong — the real user
+hit this live on GitHub Pages (dwg7.github.io) for the *Vientiane* tile,
+which this entry had claimed was reliable. Re-tested properly and found
+the actual, 100%-reproducible rule:
 
-Decision: document this as a known limitation (see CLAUDE.md and
-HANDOVER.md) rather than working around it client-side (e.g. with retries
-or a fallback tile source) for the MVP. If/when this site needs to be
-production-grade, taroverture should move to hosting with real SLA
-guarantees.
+```bash
+curl -o /dev/null -w '%{http_code}\n' "https://tunnel.optgeo.org/martin/buildings/14/12861/7360"
+# -> 200
+curl -o /dev/null -w '%{http_code}\n' -H "Origin: https://dwg7.github.io" \
+  "https://tunnel.optgeo.org/martin/buildings/14/12861/7360"
+# -> 530
+curl -o /dev/null -w '%{http_code}\n' -H "Origin: https://example.com" \
+  "https://tunnel.optgeo.org/martin/buildings/14/12861/7360"
+# -> 530 (any Origin value, not just github.io)
+```
+
+Confirmed this is independent of Cloudflare caching by hitting a tile
+coordinate that had never been requested before (`14/9999/9999`) and the
+`/martin/catalog` metadata endpoint: both succeed with no `Origin` header
+and both fail (`530`, a Cloudflare edge-level "couldn't reach origin"
+error) the instant any `Origin` header is present, regardless of its
+value.
+
+**Since every real cross-origin browser `fetch()` always sends an `Origin`
+header, this means tunnel.optgeo.org cannot currently serve tiles to any
+real website's client-side JS at all** — not to dwg7.github.io, not to
+any other domain. It coincidentally "worked" during this project's own
+dev-loop testing only because those checks used `curl` without an
+explicit `Origin` header, or hit Cloudflare's cache from an earlier such
+request.
+
+Root cause is outside this repo: almost certainly a Cloudflare Access
+policy or WAF/firewall rule in front of the `cloudflared` tunnel that
+rejects Origin-bearing requests, configured on the `tunnel.optgeo.org`
+side (Taro M.'s infrastructure), not something fixable from this app's
+code. Decision: this needs to be raised with whoever administers that
+Cloudflare zone — see HANDOVER.md for the current ask. No client-side
+workaround exists (a request without `Origin` cannot be made from
+browser JS to a cross-origin URL).
