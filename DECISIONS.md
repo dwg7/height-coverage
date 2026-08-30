@@ -206,3 +206,52 @@ straight from smellman's own host, with stars.optgeo.org (already a more
 established piece of shared infrastructure this project depends on
 anyway for the background layer) as the single point of contact instead
 of two separate personal endpoints.
+
+### Addendum: globe projection + fill-extrusion breaks viewport stats
+
+After deploying MapLibre 6.6.0 with globe projection (see the MapLibre
+upgrade entry below) and switching the buildings source to
+`stars.optgeo.org/overture_buildings`, a user reported the stats panel's
+"N with height data" count reading `0` no matter where they panned —
+including locations independently confirmed (by decoding the same
+PMTiles directly in Python) to have OSM-attributed buildings within
+~150m of the view center. So this wasn't data sparsity.
+
+Debugging trail:
+
+1. First fix: `queryRenderedFeatures()` called with no geometry argument
+   (the "whole viewport" shortcut) turned out to depend on
+   `zoomLevelsToOverscale`, whose default changed in v6. Setting it back
+   to `undefined` fixed the *total* count (green+yellow) going from 0 to
+   the expected ~2000 buildings at zoom 16 (past the source's maxzoom 14)
+   — but the green-specific count stayed at 0.
+2. Second fix attempt: passed an explicit full-canvas bounding box to
+   `queryRenderedFeatures()` instead of omitting the geometry argument
+   entirely, on the theory that the "no geometry" shortcut specifically
+   mishandles the `fill-extrusion` layer (`buildings-input`) even though
+   the flat `fill` layers (`buildings-not-input`, `buildings-non-osm`)
+   were fine. This didn't fix it either.
+3. User hypothesis, confirmed by disabling globe: **globe projection
+   plus a `fill-extrusion` layer breaks `queryRenderedFeatures()`'s
+   viewport-wide query for that layer specifically**, even at zoom levels
+   where MapLibre has already faded the render to flat mercator (globe
+   only affects rendering below ~zoom 5, per MapLibre's docs). The layer
+   still renders correctly, and a point-based query
+   (`queryRenderedFeatures(point, {...})`, used by the hover panel) works
+   fine against it — only the geometry-less/bbox viewport query breaks,
+   and only for `fill-extrusion`. This lines up with a MapLibre v6.1.0
+   changelog entry, "Fix 3D buildings disappearing when the camera
+   pitches up to look near the horizon, by growing tile-culling bounds"
+   — plausibly that fix covers the renderer's tile-culling calculation
+   but not `queryRenderedFeatures()`'s separate one, for globe mode
+   specifically.
+
+**Decision:** keep globe (worth it for this being an explicitly
+worldwide, not-tied-to-one-region tool), and render the green
+"OSM-attributed" layer as flat `fill` instead of `fill-extrusion` rather
+than give up on globe. All three building layers are flat fills now; the
+original "green extruded in 3D" design (CLAUDE.md's original framing)
+is dropped in favor of correct stats. Verified by the user directly:
+disabling globe alone fixed the count (confirming the mechanism), then
+re-enabling globe with `buildings-input` switched to `fill` also fixed
+it while keeping the globe view.

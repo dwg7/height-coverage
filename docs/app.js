@@ -10,7 +10,7 @@
  * PMTiles source (Overture Maps buildings schema, built by smellman / Taro
  * Matsuzawa). Split into three layers:
  *
- *   - green (extruded): height/floor data traces back to OpenStreetMap --
+ *   - green (flat): height/floor data traces back to OpenStreetMap --
  *       `height` present with `@height_source === "OpenStreetMap"`, or
  *       `num_floors` present with an "osm" provider in `sources` (there is
  *       no dedicated source field for floor count, so `sources` is used as
@@ -21,6 +21,10 @@
  *   - faint gray (flat, low opacity): no OSM involvement at all, just a
  *       Microsoft/Google AI-detected footprint -- background context only,
  *       excluded from the coverage stats.
+ *
+ * All three are flat fills, not fill-extrusion -- see DECISIONS.md #9
+ * addendum for why (globe projection + fill-extrusion breaks
+ * queryRenderedFeatures()'s viewport query for that layer).
  *
  * See DECISIONS.md #4-5 for how this was derived from decoded sample tiles.
  */
@@ -64,25 +68,21 @@ const IS_OSM_ATTRIBUTED = [
 // faint background context that a footprint exists there at all.
 const IS_NON_OSM = ["!", HAS_OSM_SOURCE];
 
-const EXTRUSION_HEIGHT = [
-  "case",
-  ["has", "height"], ["get", "height"],
-  ["*", ["get", "num_floors"], 3.66],
-];
-
 async function main() {
   const style = await fetch(BASE_STYLE_URL).then((r) => r.json());
 
   // Drop the base style's own `building` layer -- see header comment.
   style.layers = style.layers.filter((l) => l.id !== "building");
 
-  // TEMP: globe projection suspected of interacting badly with
-  // queryRenderedFeatures() on the fill-extrusion layer even at high zoom
-  // (MapLibre v6.1.0's globe/pitch tile-culling-bounds fix may only cover
-  // the renderer, not the query path) -- see DECISIONS.md #9 addendum.
-  // Disabled while isolating the stats-panel-always-0 bug; re-enable once
-  // confirmed innocent or fixed upstream.
-  // style.projection = { type: "globe" };
+  // This is a generic, worldwide tool -- see CLAUDE.md -- so default to a
+  // globe rather than a flat mercator projection. MapLibre fades to
+  // mercator automatically past ~zoom 5, so this only affects the
+  // zoomed-out, whole-world view. Confirmed (see DECISIONS.md #9 addendum)
+  // that globe + a fill-extrusion layer breaks queryRenderedFeatures()'s
+  // viewport-wide query for that layer even at high zoom where it renders
+  // as flat mercator -- the fix is to not use fill-extrusion at all (see
+  // the buildings-input layer below) rather than give up on globe.
+  style.projection = { type: "globe" };
 
   style.sources.buildings = {
     type: "vector",
@@ -126,16 +126,22 @@ async function main() {
       },
     },
     {
+      // Flat, not fill-extrusion: with globe projection enabled, a
+      // fill-extrusion layer's queryRenderedFeatures() viewport query
+      // silently returns nothing even at zoom levels well past globe's
+      // mercator fade threshold (rendering and point-queries are both
+      // fine -- only the whole-viewport query on this specific layer type
+      // breaks). See DECISIONS.md #9 addendum. A flat fill sacrifices the
+      // 3D "pop" for mapped buildings but keeps globe and working stats.
       id: "buildings-input",
-      type: "fill-extrusion",
+      type: "fill",
       source: "buildings",
       "source-layer": "building",
       minzoom: 12,
       filter: IS_OSM_ATTRIBUTED,
       paint: {
-        "fill-extrusion-color": GREEN,
-        "fill-extrusion-height": EXTRUSION_HEIGHT,
-        "fill-extrusion-opacity": 0.85,
+        "fill-color": GREEN,
+        "fill-opacity": 0.7,
       },
     }
   );

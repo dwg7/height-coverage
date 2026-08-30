@@ -2,7 +2,7 @@
 
 **Repository:** `dwg7/height-coverage`
 **Title:** Height Coverage — 建物の高さ入力状況を可視化する啓発サイト
-**Description:** OSM上の建物ポリゴンのうち、高さ・階数（height / num_floors）が入力済みのものを緑の3D、未入力のものを黄色のフラットで塗り分け、「これだけの建物が高さ入力を待っている」ことを視覚的に伝える啓発サイト。世界中どこでも使える汎用ツールとして設計し、特定の地名をリポジトリ名に含めない。最初の適用対象はヴィエンチャン歴史地区（チャンタブリー郡）。
+**Description:** OSM上の建物ポリゴンのうち、高さ・階数（height / num_floors）が入力済みのものを緑、未入力のものを黄色で塗り分け（いずれもフラット表示。理由は[DECISIONS.md](DECISIONS.md)項目9参照）、「これだけの建物が高さ入力を待っている」ことを視覚的に伝える啓発サイト。世界中どこでも使える汎用ツールとして設計し、特定の地名をリポジトリ名に含めない。最初の適用対象はヴィエンチャン歴史地区（チャンタブリー郡）。
 
 ## 実装状況
 
@@ -21,7 +21,7 @@ JICAラオス案件（`hfu/vientiane-basemap-baseline`参照）において、�
 ## サイト構成（2層構造）
 
 1. **背景レイヤー**：`stars.optgeo.org`の`openstreetmap_jp_planet`（Planetiler + OpenMapTilesスキーマ）で、建物以外のすべて（道路・地名・水域等）をレンダリングする。スタイルのベースは https://stars.optgeo.org/style/openstreetmap_jp_planet を改造する。
-2. **建物レイヤー**：`stars.optgeo.org/overture_buildings`（smellman/Taro Matsuzawa氏が構築したOverture Maps buildingsスキーマのタイル。旧`tunnel.optgeo.org/martin/buildings`と同一データセットで、現在はstars.optgeo.org側がsmellman氏の`dev.smellman.org`上のPMTilesを直接プロキシする形で配信。経緯は[DECISIONS.md](DECISIONS.md)項目9参照）で建物を描画する。ただし`sources`フィールドでOSM以外の出典を持つフィーチャーは無視する。緑（3D押し出し）／黄色（フラット）の判定もこのレイヤーのデータで行う。
+2. **建物レイヤー**：`stars.optgeo.org/overture_buildings`（smellman/Taro Matsuzawa氏が構築したOverture Maps buildingsスキーマのタイル。旧`tunnel.optgeo.org/martin/buildings`と同一データセットで、現在はstars.optgeo.org側がsmellman氏の`dev.smellman.org`上のPMTilesを直接プロキシする形で配信。経緯は[DECISIONS.md](DECISIONS.md)項目9参照）で建物を描画する。ただし`sources`フィールドでOSM以外の出典を持つフィーチャーは無視する。緑／黄色（いずれもフラット表示）の判定もこのレイヤーのデータで行う。
 
 ## 重要な技術的発見（必読）
 
@@ -81,11 +81,12 @@ z=14タイルをヴィエンチャン（12861/7360）・パリ中心部（8299/5
 
 3階調で表示する（[docs/app.js](docs/app.js)に実装）：
 
-- **緑（3D押し出し表示）**：以下のいずれかを満たす建物。
+- **緑（フラット表示）**：以下のいずれかを満たす建物。
   - `height`が存在し、かつ`@height_source == "OpenStreetMap"`
   - `height`が無いが`num_floors`が存在し、かつ`sources`に`provider:"osm"`を含む
 - **黄色（フラット表示）**：`sources`に`provider:"osm"`を含む（＝OSM上に建物自体は存在する）が、上記の緑条件を満たさない建物。「入力を待っている」啓発メッセージの主対象。
 - **極薄いグレー（フラット・低不透明度）**：`sources`に`osm`が一切含まれない建物（Microsoft/GoogleのAI検出フットプリントのみ）。OSMへの入力呼びかけの対象ではないが、「そこに建物があること自体」を背景参考情報として薄く示す（ユーザー要望により追加、[DECISIONS.md](DECISIONS.md)参照）。
+- 3色すべてフラット表示（`fill-extrusion`不使用）。理由は[DECISIONS.md](DECISIONS.md)項目9の追記を参照（globe投影とfill-extrusionレイヤーの組み合わせで`queryRenderedFeatures`のビューポート全体クエリが機能しないバグを実機で確認したため）。
 
 ### なぜ`height`と`num_floors`で判定方法が違うのか
 
@@ -95,7 +96,6 @@ taroverture（Overtureスキーマ）には`@height_source`という出典追跡
 - `num_floors`しか無いとき → 専用フィールドが無いので、`sources`（建物ジオメトリ全体の出典リスト）に`provider:"osm"`が含まれるかで代用する。これは「Vientiane・パリ・ロンドンでサンプルした全フィーチャーで、`num_floors`を持つものは例外なくOSM由来だった（Microsoft ML Buildings・Google Open Buildingsのどちらも階数までは推定していない）」という実データ観察に基づく代用であり、スキーマ上の保証ではない（[DECISIONS.md](DECISIONS.md)項目4参照）。
 
 **`@geometry_source`（建物の輪郭＝ジオメトリの出典）は高さ・階数の判定には一切使っていない。** 名前が`@height_source`と似ているため混同しやすいが、別物。輪郭がAI検出（Microsoft/Google）由来でも、高さだけがOSM由来というケース（`sources`に`microsoft`と`osm`が両方入る）が実際にパリ・ロンドンで多数観測されており、これが`@geometry_source`ではなく`@height_source`／`sources`の`provider`を見るべき理由でもある。
-- 押し出し高さは`height`（メートル）優先、無ければ`num_floors * 3.66`（Planetilerと同じ係数だが、実際に階数データがある建物にのみ適用する点が異なる）。
 - 画面内（ビューポート限定、バックエンド集計なし）で緑／黄色の件数と、そのうち階数入力 vs 高さ(m)入力の内訳をUIに表示する。「階数入力の方がフィールド調査で現実的」という仮説を検証するための内訳表示。
 
 ## インフラ変更履歴（解決済み・要参照）

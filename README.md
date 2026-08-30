@@ -10,7 +10,7 @@ have height or floor-count data, and how many are still waiting for it?
 Every building is colored by whether its height/floor data is attributable
 to OpenStreetMap:
 
-- 🟩 **Green, extruded in 3D** — has `height` or floor count (`num_floors`,
+- 🟩 **Green** — has `height` or floor count (`num_floors`,
   i.e. `building:levels` in OSM), and it's traceable to OpenStreetMap.
 - 🟨 **Yellow, flat** — the building exists in OSM, but has no height/floor
   data yet. This is the actual call to action: click one to jump straight
