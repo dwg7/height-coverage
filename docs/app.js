@@ -76,11 +76,13 @@ async function main() {
   // Drop the base style's own `building` layer -- see header comment.
   style.layers = style.layers.filter((l) => l.id !== "building");
 
-  // This is a generic, worldwide tool -- see CLAUDE.md -- so default to a
-  // globe rather than a flat mercator projection. MapLibre fades to
-  // mercator automatically past ~zoom 5, so this only affects the
-  // zoomed-out, whole-world view.
-  style.projection = { type: "globe" };
+  // TEMP: globe projection suspected of interacting badly with
+  // queryRenderedFeatures() on the fill-extrusion layer even at high zoom
+  // (MapLibre v6.1.0's globe/pitch tile-culling-bounds fix may only cover
+  // the renderer, not the query path) -- see DECISIONS.md #9 addendum.
+  // Disabled while isolating the stats-panel-always-0 bug; re-enable once
+  // confirmed innocent or fixed upstream.
+  // style.projection = { type: "globe" };
 
   style.sources.buildings = {
     type: "vector",
