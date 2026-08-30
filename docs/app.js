@@ -25,12 +25,15 @@
  * See DECISIONS.md #4-5 for how this was derived from decoded sample tiles.
  */
 
+import * as maplibregl from "https://unpkg.com/maplibre-gl@6.6.0/dist/maplibre-gl.mjs";
+
 const BUILDINGS_URL = "https://stars.optgeo.org/overture_buildings/{z}/{x}/{y}";
 const BASE_STYLE_URL = "https://stars.optgeo.org/style/openstreetmap_jp_planet";
 
 // Default view: Chao Anouvong Stadium area, Vientiane (Chanthabuly, Laos) --
 // the first real-world application of this generic tool. Overridable via
-// the URL hash that maplibre's `hash: true` option maintains automatically.
+// the URL hash (as `#map=z/lat/lng/bearing/pitch`) that maplibre's
+// `hash: "map"` option maintains automatically.
 const DEFAULT_VIEW = { center: [102.61, 17.97], zoom: 16, pitch: 45 };
 
 const GREEN = "#2ecc71";
@@ -72,6 +75,12 @@ async function main() {
 
   // Drop the base style's own `building` layer -- see header comment.
   style.layers = style.layers.filter((l) => l.id !== "building");
+
+  // This is a generic, worldwide tool -- see CLAUDE.md -- so default to a
+  // globe rather than a flat mercator projection. MapLibre fades to
+  // mercator automatically past ~zoom 5, so this only affects the
+  // zoomed-out, whole-world view.
+  style.projection = { type: "globe" };
 
   style.sources.buildings = {
     type: "vector",
@@ -132,11 +141,12 @@ async function main() {
   const map = new maplibregl.Map({
     container: "map",
     style,
-    hash: true,
+    hash: "map",
     ...DEFAULT_VIEW,
   });
 
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+  map.addControl(new maplibregl.GlobeControl(), "top-right");
 
   // The buildings tile source is a remote proxy (see CLAUDE.md/DECISIONS.md
   // for the current upstream). Surface load failures plainly instead of
