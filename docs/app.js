@@ -142,6 +142,11 @@ async function main() {
     container: "map",
     style,
     hash: "map",
+    // MapLibre v6 changed the default tile-overscaling strategy in a way
+    // that broke queryRenderedFeatures()-based viewport stats for this
+    // source (it renders fine either way, but stops finding features when
+    // queried past maxzoom). Reverting to the pre-v6 behavior fixes it.
+    zoomLevelsToOverscale: undefined,
     ...DEFAULT_VIEW,
   });
 
@@ -194,11 +199,15 @@ function setupPanelToggle() {
 
 // Only the fields the classification logic actually reads: `num_floors`
 // (its mere presence, combined with an osm entry in `sources`, makes a
-// building green -- see HAS_OSM_SOURCE/IS_OSM_ATTRIBUTED above) and the
-// two fields that decide the `height` path (`height` itself and its
-// dedicated source field, `@height_source`). Everything else on the
-// feature is noise for this purpose.
-const HOVER_FIELDS = ["num_floors", "height", "@height_source"];
+// building green -- see HAS_OSM_SOURCE/IS_OSM_ATTRIBUTED above) and
+// `height`. `@height_source` is included too, but only when it's
+// something other than "OpenStreetMap" -- when height IS OSM-attributed
+// the building is green by definition, so the field is redundant there;
+// it only earns its place on screen for the (rarer) case of a height
+// value attributed to Microsoft ML Buildings etc, which is otherwise
+// invisible (that building renders gray, same as one with no height data
+// at all).
+const HOVER_FIELDS = ["num_floors", "height"];
 
 // Shows just those fields for the hovered building (bottom-left panel) --
 // handy for spot-checking why it was classified green/yellow/gray.
@@ -207,6 +216,9 @@ function showHoverInfo(feature) {
   const rows = feature
     ? HOVER_FIELDS.filter((k) => feature.properties[k] !== null && feature.properties[k] !== undefined && feature.properties[k] !== "")
     : [];
+  if (feature && feature.properties["@height_source"] && feature.properties["@height_source"] !== "OpenStreetMap") {
+    rows.push("@height_source");
+  }
 
   if (rows.length === 0) {
     panel.classList.remove("visible");
