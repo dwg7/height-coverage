@@ -91,9 +91,11 @@ z=14タイルをヴィエンチャン（12861/7360）・パリ中心部（8299/5
 
 ## 既知のインフラ上の制約（重大・要対応）
 
-**`tunnel.optgeo.org`は現在、`Origin`ヘッダーを持つリクエストを実質的に全て拒否しており、実ブラウザからのクロスオリジンfetchが原理的に成功しない状態にある。** GitHub Pages公開後、実際に`https://dwg7.github.io`から建物レイヤーが読み込めないというCORSエラーが報告され、調査の結果、特定のタイルの不安定さではなく、**`Origin`ヘッダーの値を問わず、それが付いているだけでCloudflareが530（オリジン到達エラー）を返す**という100%再現するルールであることが判明した（`Origin`ヘッダー無しのリクエストのみ200が返る）。ブラウザのfetchは必ず`Origin`を送るため、これはこのアプリのコードでは回避不可能。
+**`tunnel.optgeo.org`（および同じマシン上の`jaxa.optgeo.org`）のオリジンサーバーが現在ダウンしている。** GitHub Pages公開後、実際に`https://dwg7.github.io`から建物レイヤーが読み込めないというCORSエラーが報告された。当初「`Origin`ヘッダー付きリクエストを一律拒否している」と診断したが、これは誤りだった。真の原因は、hfu氏が管理用に使う`ssh jaxa.optgeo.org`（同じマシン上のWebSocket経由SSHゲートウェイ）が`websocket: bad handshake`で失敗することから判明した、**マシン自体（またはその`cloudflared`接続）がCloudflareエッジから切断されている**という状態。
 
-原因はこのリポジトリの外側（`tunnel.optgeo.org`を運用するCloudflareゾーン側のAccessポリシーまたはWAF設定）にあると推測される。対応にはTaro M.氏（taroverture運用者）またはCloudflare設定の管理者への連絡が必要。詳細な検証手順と結果は[DECISIONS.md](DECISIONS.md)の項目8、対応状況は[HANDOVER.md](HANDOVER.md)を参照。
+`stars.optgeo.org`は同じCloudflareゾーン（DNS上は同じIP）だが別の健全なインフラ上で動いており、未キャッシュのタイルでも問題なく応答する。一方`tunnel.optgeo.org`/`jaxa.optgeo.org`は、以前の検証セッションで`curl`が偶然キャッシュを温めていた一部のURLだけがCloudflareのエッジキャッシュから応答し、それ以外（新規タイル・`/martin/catalog`・SSHなど、実際にオリジンへ到達する必要があるものすべて）は`530`エラーになる。
+
+これはこのアプリのコードでは対応不可能な、hfu氏／Taro M.氏側のマシンの運用上の問題。誰かが物理的／リモートでそのマシンにアクセスし、ネットワーク接続と`cloudflared`プロセスの状態を確認・再起動する必要がある。詳細な検証の経緯（2回の誤診断を含む）は[DECISIONS.md](DECISIONS.md)の項目8、対応状況は[HANDOVER.md](HANDOVER.md)を参照。
 
 ## スコープ
 

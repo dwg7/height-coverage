@@ -100,45 +100,61 @@ CDN, fetching the background style and building tiles directly from
 `stars.optgeo.org` / `tunnel.optgeo.org` client-side. Simplest possible
 deployment for a public awareness site with no dynamic server-side needs.
 
-## 8. `tunnel.optgeo.org` blocks every request that carries an `Origin` header (correction: not "flaky", 100% reproducible)
+## 8. `tunnel.optgeo.org`'s origin machine is down (corrected twice — see below)
 
-An earlier version of this entry mischaracterized this as one specific
-tile (Paris) being intermittently flaky. That was wrong — the real user
-hit this live on GitHub Pages (dwg7.github.io) for the *Vientiane* tile,
-which this entry had claimed was reliable. Re-tested properly and found
-the actual, 100%-reproducible rule:
+This entry has been wrong twice while chasing the real cause; keeping both
+corrections on record since the debugging trail itself is useful.
+
+**First (wrong) theory:** one specific tile (Paris) was intermittently
+flaky. Disproven when a real user hit CORS errors live on GitHub Pages for
+the *Vientiane* tile, which this entry had called reliable.
+
+**Second (wrong) theory:** `tunnel.optgeo.org` rejects any request that
+carries an `Origin` header, regardless of value — based on `curl` tests
+where adding `-H "Origin: ..."` (any value) turned a `200` into a
+Cloudflare `530`, while the identical request with no `Origin` succeeded.
+This looked 100% reproducible and origin-independent, so it seemed like a
+firewall/Access rule keyed on the mere presence of `Origin`.
+
+**Actual cause, confirmed by the site owner:** the machine behind the
+tunnel is unreachable. hfu normally reaches it for admin via
+`ssh jaxa.optgeo.org` (a WebSocket-tunneled SSH endpoint on the same host
+as the `tunnel.optgeo.org` Martin tile server) and that now fails with
+`websocket: bad handshake` — i.e. Cloudflare can't complete even a raw
+SSH-over-WebSocket upgrade to that origin. Checking DNS confirmed
+`jaxa.optgeo.org`, `tunnel.optgeo.org`, and `stars.optgeo.org` all resolve
+to the same two Cloudflare anycast IPs (same zone), but:
 
 ```bash
-curl -o /dev/null -w '%{http_code}\n' "https://tunnel.optgeo.org/martin/buildings/14/12861/7360"
-# -> 200
+curl -o /dev/null -w '%{http_code}\n' "https://jaxa.optgeo.org/"
+# -> 530, even with NO Origin header at all
+curl -o /dev/null -w '%{http_code}\n' "https://stars.optgeo.org/openstreetmap_jp_planet/14/9999/9999"
+# -> 200, a tile coordinate never requested before, no Origin header
 curl -o /dev/null -w '%{http_code}\n' -H "Origin: https://dwg7.github.io" \
-  "https://tunnel.optgeo.org/martin/buildings/14/12861/7360"
-# -> 530
-curl -o /dev/null -w '%{http_code}\n' -H "Origin: https://example.com" \
-  "https://tunnel.optgeo.org/martin/buildings/14/12861/7360"
-# -> 530 (any Origin value, not just github.io)
+  "https://stars.optgeo.org/openstreetmap_jp_planet/14/9999/9999"
+# -> 200, same tile, WITH a real cross-origin Origin header
 ```
 
-Confirmed this is independent of Cloudflare caching by hitting a tile
-coordinate that had never been requested before (`14/9999/9999`) and the
-`/martin/catalog` metadata endpoint: both succeed with no `Origin` header
-and both fail (`530`, a Cloudflare edge-level "couldn't reach origin"
-error) the instant any `Origin` header is present, regardless of its
-value.
+`stars.optgeo.org` is demonstrably alive (serves brand-new, never-cached
+tiles, with or without `Origin`), while `jaxa.optgeo.org` fails even a
+plain GET with no `Origin` at all. That rules out "Origin-header-triggered
+blocking" as the mechanism — it correlates with Origin in `tunnel.optgeo.org`'s
+case purely by coincidence: every "successful" no-Origin response this
+session observed for `tunnel.optgeo.org` was a **stale Cloudflare edge
+cache hit** left over from this project's own earlier `curl` testing
+(without `-H Origin`, which happens not to disturb the cache key for
+those specific URLs), not a live round-trip to the origin. Any request
+that actually needs to reach the origin — SSH, a brand-new tile
+coordinate, `/martin/catalog` — fails with `530` regardless of headers,
+because **the origin machine (or its `cloudflared` connector) is simply
+not connected to Cloudflare right now.** `stars.optgeo.org` is unaffected
+because it runs on separate, currently-healthy infrastructure, not the
+same personal machine.
 
-**Since every real cross-origin browser `fetch()` always sends an `Origin`
-header, this means tunnel.optgeo.org cannot currently serve tiles to any
-real website's client-side JS at all** — not to dwg7.github.io, not to
-any other domain. It coincidentally "worked" during this project's own
-dev-loop testing only because those checks used `curl` without an
-explicit `Origin` header, or hit Cloudflare's cache from an earlier such
-request.
-
-Root cause is outside this repo: almost certainly a Cloudflare Access
-policy or WAF/firewall rule in front of the `cloudflared` tunnel that
-rejects Origin-bearing requests, configured on the `tunnel.optgeo.org`
-side (Taro M.'s infrastructure), not something fixable from this app's
-code. Decision: this needs to be raised with whoever administers that
-Cloudflare zone — see HANDOVER.md for the current ask. No client-side
-workaround exists (a request without `Origin` cannot be made from
-browser JS to a cross-origin URL).
+**Decision:** this is an outage on hfu's/Taro M.'s own machine, not a
+Cloudflare config issue and not fixable from this app's code at all. Next
+step is entirely operational: whoever has physical/remote access to that
+host needs to check whether it's powered on and networked, and restart
+`cloudflared` (or reboot) if not. See HANDOVER.md for the current status.
+No further client-side investigation is useful here — once the tunnel
+reconnects, the site should work exactly as verified during development.

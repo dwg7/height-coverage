@@ -30,38 +30,43 @@ only the building tiles fail.
 
 ## Known issues / open threads
 
-1. **BLOCKING: `tunnel.optgeo.org` rejects every Origin-bearing request —
-   the live site's buildings layer currently does not load for real users.**
+1. **BLOCKING: the machine behind `tunnel.optgeo.org` / `jaxa.optgeo.org`
+   is offline — the live site's buildings layer currently does not load.**
    Confirmed live on `https://dwg7.github.io/height-coverage/` (a user
-   reported CORS console errors) and root-caused: any request to
-   `tunnel.optgeo.org` that carries an `Origin` header — any value at all,
-   not just github.io's — gets `530` from Cloudflare, while the identical
-   request with no `Origin` header succeeds. Verified this holds even for
-   a never-before-fetched tile and for `/martin/catalog`, so it isn't a
-   caching artifact. See DECISIONS.md #8 for the full curl transcript.
+   reported CORS console errors). Two earlier theories in this doc's
+   history were wrong (one specific tile being flaky; then "any `Origin`
+   header gets blocked") — see DECISIONS.md #8 for the full trail. The
+   actual cause, confirmed by hfu: `ssh jaxa.optgeo.org` (their normal way
+   of reaching that machine, an SSH-over-WebSocket gateway on the same
+   host as the Martin tile server) fails with `websocket: bad handshake`,
+   and hfu recalled doing network reconfiguration on that machine around
+   the same time — so the `cloudflared` tunnel connector most likely just
+   hasn't reconnected since. `stars.optgeo.org` (separate, healthy
+   infrastructure) is unaffected.
 
-   Since every real browser `fetch()` to a cross-origin URL always sends
-   `Origin`, **this cannot be worked around from this app's client-side
-   code.** It needs to be fixed upstream, on the Cloudflare
-   zone/tunnel/Access config in front of `tunnel.optgeo.org` — almost
-   certainly a WAF/Access rule that's rejecting Origin-bearing requests.
-
-   **Action needed:** reach out to whoever administers that Cloudflare
-   setup (Taro M., per CLAUDE.md) and ask them to check for an Access
-   policy or firewall rule blocking requests with an `Origin` header, or
-   to add an explicit CORS allow-list. Re-test with:
+   **This is expected fallout of a network change on hfu's own machine,
+   not a mystery outage or a bug in this app** — nothing to fix in this
+   repo. Once hfu reconnects that machine's network / restarts
+   `cloudflared`, it should resolve itself. Sanity-check with:
    ```bash
-   curl -o /dev/null -w '%{http_code}\n' -H "Origin: https://dwg7.github.io" \
-     "https://tunnel.optgeo.org/martin/buildings/14/12861/7360"
+   curl -o /dev/null -w '%{http_code}\n' "https://jaxa.optgeo.org/"
+   curl -o /dev/null -w '%{http_code}\n' \
+     "https://tunnel.optgeo.org/martin/buildings/14/9999/9999"
    ```
-   This should return `200` once fixed; it returns `530` as of this
-   writing (2026-08-30).
+   Both return `530` as of this writing (2026-08-30); both should return
+   something other than `530` once the machine is back (a real SSH
+   handshake / non-cached `200` respectively — that specific tile
+   coordinate is picked deliberately because it's out of any real
+   geographic range, so a `200` there can only come from a live origin,
+   never a stale cache).
 
-   No code changes were made to work around this — there isn't a
-   client-side fix. Once the upstream config is corrected, the site
-   should work as already verified during development (before this was
-   caught, the classification/rendering/stats logic was confirmed correct
-   against real decoded tiles across Vientiane/Paris/London).
+   Once it's back, the site should work as already verified during
+   development — the classification/rendering/stats logic was confirmed
+   correct against real decoded tiles across Vientiane/Paris/London before
+   this outage was noticed, and `docs/app.js` now also shows a clear
+   in-app message ("Buildings layer unavailable right now...") instead of
+   hanging on "Loading…" when the buildings source fails to load, so
+   future outages like this are less confusing for visitors.
 
 2. **`building_part` unused.** taroverture's `building_part` layer often has
    *more* height coverage than the parent `building` footprint (observed
