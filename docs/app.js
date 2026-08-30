@@ -138,10 +138,9 @@ async function main() {
 
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
 
-  // The buildings tile source (tunnel.optgeo.org) is a personal/dev
-  // endpoint with known upstream reliability issues -- see DECISIONS.md #8.
-  // Surface that plainly instead of leaving the panel stuck on "Loading…"
-  // forever when its tiles fail to fetch.
+  // The buildings tile source is a remote proxy (see CLAUDE.md/DECISIONS.md
+  // for the current upstream). Surface load failures plainly instead of
+  // leaving the panel stuck on "Loading…" forever.
   let buildingsErrorShown = false;
   map.on("error", (e) => {
     if (e.sourceId !== "buildings" || buildingsErrorShown) return;
@@ -163,6 +162,54 @@ async function main() {
   map.on("mouseleave", "buildings-not-input", () => {
     map.getCanvas().style.cursor = "";
   });
+
+  const BUILDING_LAYERS = ["buildings-input", "buildings-not-input", "buildings-non-osm"];
+  map.on("mousemove", (e) => {
+    const feats = map.queryRenderedFeatures(e.point, { layers: BUILDING_LAYERS });
+    showHoverInfo(feats[0]);
+  });
+  map.on("mouseout", () => showHoverInfo(null));
+
+  setupPanelToggle();
+}
+
+function setupPanelToggle() {
+  const panel = document.getElementById("panel");
+  const icon = document.getElementById("panel-toggle-icon");
+  document.getElementById("panel-toggle").addEventListener("click", () => {
+    const collapsed = panel.classList.toggle("collapsed");
+    icon.textContent = collapsed ? "+" : "−";
+  });
+}
+
+// Shows the hovered building's raw attributes (bottom-left panel) -- handy
+// for spot-checking why a given building was classified the way it was
+// (e.g. inspecting `sources` / `@height_source` directly on the map).
+function showHoverInfo(feature) {
+  const panel = document.getElementById("hover-panel");
+  if (!feature) {
+    panel.classList.remove("visible");
+    panel.innerHTML = "";
+    return;
+  }
+
+  const layerTitles = {
+    "buildings-input": "mapped (green)",
+    "buildings-not-input": "not yet mapped (yellow)",
+    "buildings-non-osm": "non-OSM footprint (gray)",
+  };
+
+  const rows = Object.entries(feature.properties)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([k, v]) => `<div class="hp-row"><span class="hp-key">${escapeHtml(k)}</span>: ${escapeHtml(String(v))}</div>`)
+    .join("");
+
+  panel.innerHTML = `<div class="hp-title">${escapeHtml(layerTitles[feature.layer.id] ?? feature.layer.id)}</div>${rows}`;
+  panel.classList.add("visible");
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 function showEditPopup(map, e) {

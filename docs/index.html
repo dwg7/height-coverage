@@ -25,8 +25,18 @@
   }
   #panel h1 {
     font-size: 15px;
-    margin: 0 0 6px 0;
+    margin: 0;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
+  #panel.collapsed h1 { margin: 0; }
+  #panel h1 .toggle { font-size: 12px; color: #666; flex: none; }
+  #panel .body { margin-top: 6px; }
+  #panel.collapsed .body { display: none; }
   #panel p { margin: 0 0 8px 0; }
   #panel a { color: #1a5fb4; }
 
@@ -58,6 +68,32 @@
     z-index: 1;
   }
 
+  #hover-panel {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    max-width: 360px;
+    max-height: 40vh;
+    overflow-y: auto;
+    background: rgba(20, 20, 24, 0.88);
+    color: #d6f5e3;
+    border-radius: 8px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+    font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    z-index: 1;
+    display: none;
+  }
+  #hover-panel.visible { display: block; }
+  #hover-panel .hp-title {
+    color: #fff;
+    font-weight: 700;
+    margin-bottom: 4px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  #hover-panel .hp-row { white-space: pre-wrap; word-break: break-word; }
+  #hover-panel .hp-key { color: #7fd8a8; }
+
   .osm-popup a.edit-link {
     display: inline-block;
     margin-top: 6px;
@@ -77,21 +113,25 @@
 <div id="map"></div>
 
 <div id="panel">
-  <h1>Height Coverage</h1>
-  <p>
-    Buildings shown in <strong>green</strong> already have height or floor-count
-    data in OpenStreetMap. Buildings in <strong>yellow</strong> do not — they are
-    waiting for someone to add it.
-  </p>
-  <div class="legend-row"><span class="swatch green"></span> height / floors known (from OSM)</div>
-  <div class="legend-row"><span class="swatch yellow"></span> not yet mapped</div>
-  <div class="legend-row faint"><span class="swatch gray"></span> not in OSM at all (AI footprint only, for reference)</div>
-  <div id="stats">
-    <div class="big" id="stat-pct">–</div>
-    <div class="sub" id="stat-detail">Loading buildings in view…</div>
-    <div id="stat-breakdown"></div>
+  <h1 id="panel-toggle">Height Coverage <span class="toggle" id="panel-toggle-icon">&minus;</span></h1>
+  <div class="body">
+    <p>
+      Buildings shown in <strong>green</strong> already have height or floor-count
+      data in OpenStreetMap. Buildings in <strong>yellow</strong> do not — they are
+      waiting for someone to add it.
+    </p>
+    <div class="legend-row"><span class="swatch green"></span> height / floors known (from OSM)</div>
+    <div class="legend-row"><span class="swatch yellow"></span> not yet mapped</div>
+    <div class="legend-row faint"><span class="swatch gray"></span> not in OSM at all (AI footprint only, for reference)</div>
+    <div id="stats">
+      <div class="big" id="stat-pct">–</div>
+      <div class="sub" id="stat-detail">Loading buildings in view…</div>
+      <div id="stat-breakdown"></div>
+    </div>
   </div>
 </div>
+
+<div id="hover-panel"></div>
 
 <div id="legal">
   &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors ·
