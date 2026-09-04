@@ -341,3 +341,29 @@ redundant; it only earns its place for the rarer case of a
 non-OSM-attributed height, e.g. Microsoft ML Buildings, which otherwise
 renders identically to "no height at all"). Kept deliberately tiny
 (no title, ~220px max width) so it can't crowd out the map.
+
+## 12. Google Street View link in the yellow-building popup — plain URL scheme, not the paid APIs
+
+Added a link to view a clicked (unmapped) building on Google Street View,
+purely so a contributor can see what it actually looks like before
+surveying — not as an editing aid.
+
+Used the plain `google.com/maps/@?api=1&map_action=pano&viewpoint=...`
+URL scheme, not the Street View Static API or JS Embed API. Both of
+those require an API key, a digital signature, and are billed per
+request; the plain Maps URL needs none of that. `heading`/`pitch` are
+omitted on purpose — without them Google aims the panorama at the given
+coordinate from whatever imagery is nearest on its own, which is good
+enough for "go look at it" and means no bearing-to-building calculation
+is needed. If a building has no Street View coverage at all, Google just
+falls back to a plain map centered there — no failure mode to guard
+against, so no coverage check before showing the link.
+
+Deliberately kept **visually and semantically separate** from the iD
+editor link, per an explicit design requirement: a plain underlined text
+link below a divider, with a caption ("not a source to trace over for
+editing"), rather than styled like the edit-link button. The distinction
+matters because Street View imagery is not an appropriate backdrop to
+trace building outlines from (unlike orthophotos or Bing imagery, which
+OSM's editing tools do use legitimately) — this link exists purely for a
+human to look, not for tracing.
