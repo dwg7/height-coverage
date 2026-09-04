@@ -250,6 +250,14 @@ function showEditPopup(map, e) {
   const [lon, lat] = e.lngLat.toArray();
   const editUrl = `https://www.openstreetmap.org/edit?editor=id#map=19/${lat.toFixed(6)}/${lon.toFixed(6)}`;
 
+  // Plain Google Maps URL scheme -- no API key, no signature, no billing
+  // (unlike the Street View Static API or JS Embed API, which require
+  // both). heading/pitch are deliberately omitted: without them, Google
+  // aims the panorama at the given coordinate from whatever the nearest
+  // available imagery is on its own, which is good enough for "go look at
+  // it" and avoids having to compute a bearing to the building ourselves.
+  const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&fov=90`;
+
   // Nudge toward floor count (building:levels) rather than exact height in
   // meters: counting storeys is something a surveyor can do by eye in the
   // field, whereas measuring height in metres generally is not.
@@ -260,7 +268,11 @@ function showEditPopup(map, e) {
        <p>This building has no height or floor-count info attributed to OpenStreetMap.</p>
        <p>Tip: counting <strong>floors</strong> (<code>building:levels</code>) is usually
        far easier to survey than measuring exact height in metres.</p>
-       <a class="edit-link" href="${editUrl}" target="_blank" rel="noopener">Add floor count in iD editor &rarr;</a>`
+       <a class="edit-link" href="${editUrl}" target="_blank" rel="noopener">Add floor count in iD editor &rarr;</a>
+       <p class="streetview-row">
+         <a href="${escapeHtml(streetViewUrl)}" target="_blank" rel="noopener">View on Google Street View &#8599;</a>
+         <span class="streetview-note">Just for a look -- not a source to trace over for editing.</span>
+       </p>`
     )
     .addTo(map);
 }
