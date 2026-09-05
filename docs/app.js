@@ -271,7 +271,9 @@ function showEditPopup(map, e) {
        <a class="edit-link" href="${editUrl}" target="_blank" rel="noopener">Add floor count in iD editor &rarr;</a>
        <p class="streetview-row">
          <a href="${escapeHtml(streetViewUrl)}" target="_blank" rel="noopener">View on Google Street View &#8599;</a>
-         <span class="streetview-note">Just for a look -- not a source to trace over for editing.</span>
+         <span class="streetview-note">Just for a look -- not a source to trace over for editing
+         (see OSM's <a href="https://wiki.openstreetmap.org/wiki/Google" target="_blank" rel="noopener">Google</a> wiki page and
+         Google's <a href="https://www.google.com/help/terms_maps/" target="_blank" rel="noopener">Maps/Street View terms</a>).</span>
        </p>`
     )
     .addTo(map);
