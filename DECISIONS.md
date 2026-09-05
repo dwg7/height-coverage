@@ -367,3 +367,62 @@ matters because Street View imagery is not an appropriate backdrop to
 trace building outlines from (unlike orthophotos or Bing imagery, which
 OSM's editing tools do use legitimately) — this link exists purely for a
 human to look, not for tracing.
+
+## 13. Replace the popup with an 8-direction compass + center edit button — a deliberate pivot away from a persistent edit call-to-action
+
+Superseded #12's `maplibregl.Popup`-based interaction (headline, explanation
+paragraph, floor-count tip, and a standalone "Add floor count in iD editor"
+button) with a compass UI: 8 direction buttons ringed around the click
+point, each linking to Street View with a `heading` computed from the
+button's screen position folded through the map's current bearing
+(`map.getBearing()`), plus a center pencil button linking to the iD editor.
+
+**This is an intentional pivot, not a refinement.** The previous design
+actively argued for editing on every click (headline + explanation +
+labeled button); the new one does not — the edit pathway exists (the
+center button) but isn't pushed. The first-visit notice dialog (localStorage-
+gated, shown once ever) says nothing about editing at all, only the
+Street-View-is-not-a-tracing-source caveat carried over from #12. The
+reasoning: the compass now opens on *any* building — green, yellow, or
+gray — not just unmapped ones, so a persistent "go edit this" message no
+longer fits every click; a quieter, always-available edit affordance was
+judged sufficient.
+
+**The center edit button is scoped to yellow (unmapped) buildings only.**
+Editing floor count is only meaningful for buildings without OSM height/
+floor data yet, so green and gray building clicks get the 8-direction ring
+with no center button at all.
+
+**Ported near-verbatim from `dwg7/vientiane-planning-map`**, a sibling
+project that built and debugged this same compass pattern first (for its
+own zoning-popup use case, with no center button — see below). Reused:
+the `COMPASS_DIRECTIONS` table and screen-offset math, the
+viewport-fixed-`<div>` positioning approach (appended to `<body>`, not
+`map`'s container, so it isn't clipped at map edges), the
+`stopPropagation()` needed to stop the very click that opens the compass
+from also closing it via the document-level "click outside" listener, and
+the `movestart` → close-on-pan/zoom/rotate behavior (the compass's
+position is a one-time pixel snapshot, not tracked against the map, so it
+would otherwise drift off its real-world point).
+
+**Deliberate divergence from the source pattern: added a center button
+that vientiane-planning-map explicitly does not have.** Its own comment
+explains why it omits one: "a clickable element placed exactly under the
+cursor that opened the menu risks catching that same gesture's tail end"
+— i.e., a real hit-testing hazard, not an oversight. Height Coverage still
+wants a center edit button (that's the whole point of this redesign per
+explicit user request), so the mitigation taken is to start the button
+with `pointer-events: none` and arm it via `setTimeout(..., 300)` once the
+opening gesture has fully finished, rather than avoid the hazard by
+omitting the button. Verified in-browser (see below) that this doesn't
+cause the accidental-click problem in practice.
+
+Verification note: this session's embedded browser-preview tool has a
+known history of getting stuck mid-session on WebGL/MapLibre pages (see
+HANDOVER.md). This time, a fresh tab rendered correctly where a reused one
+had gone black, which let the full flow — first-visit dialog, both
+real links, 8 correct Street View headings (verified against
+`map.getBearing()` folding), the center button appearing only on a yellow
+building and not a green one, and all three close paths (outside click,
+Escape, `movestart`) — be checked directly rather than relying on code
+review alone.

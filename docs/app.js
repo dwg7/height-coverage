@@ -180,15 +180,26 @@ async function main() {
     map.on("moveend", () => updateStats(map));
   });
 
-  map.on("click", "buildings-not-input", (e) => showEditPopup(map, e));
-  map.on("mouseenter", "buildings-not-input", () => {
-    map.getCanvas().style.cursor = "pointer";
-  });
-  map.on("mouseleave", "buildings-not-input", () => {
-    map.getCanvas().style.cursor = "";
-  });
-
+  // Compass opens on any building -- green/yellow/gray alike -- but only the
+  // yellow (unmapped) layer gets the center edit button, since floor-count
+  // editing is only meaningful for buildings that don't have it yet.
   const BUILDING_LAYERS = ["buildings-input", "buildings-not-input", "buildings-non-osm"];
+  for (const layerId of BUILDING_LAYERS) {
+    map.on("click", layerId, (e) => showCompassMenu(map, e, { editable: layerId === "buildings-not-input" }));
+    map.on("mouseenter", layerId, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", layerId, () => {
+      map.getCanvas().style.cursor = "";
+    });
+  }
+
+  // The compass menu's position is a one-time pixel snapshot, not tracked
+  // against the map -- close it as soon as panning/zooming/rotating would
+  // make that snapshot stale, rather than let it visually drift off its
+  // real-world point.
+  map.on("movestart", closeCompassMenu);
+
   map.on("mousemove", (e) => {
     const feats = map.queryRenderedFeatures(e.point, { layers: BUILDING_LAYERS });
     showHoverInfo(feats[0]);
@@ -246,37 +257,178 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function showEditPopup(map, e) {
+// 8 compass directions arranged in a ring around the click point.
+// screenOffset is degrees clockwise from "up" on screen (0 = up), matching
+// how the arrows visually sit around that point. Layout and math ported
+// verbatim from dwg7/vientiane-planning-map's own compass (already debugged
+// there), which deliberately skips a center/"auto" button of its own -- see
+// the center-button comment in openCompassMenu below for why this site adds
+// one anyway.
+const COMPASS_DIRECTIONS = [
+  { title: "Northwest", arrow: "↖", screenOffset: 315 },
+  { title: "North", arrow: "↑", screenOffset: 0 },
+  { title: "Northeast", arrow: "↗", screenOffset: 45 },
+  { title: "West", arrow: "←", screenOffset: 270 },
+  { title: "East", arrow: "→", screenOffset: 90 },
+  { title: "Southwest", arrow: "↙", screenOffset: 225 },
+  { title: "South", arrow: "↓", screenOffset: 180 },
+  { title: "Southeast", arrow: "↘", screenOffset: 135 },
+];
+
+// Shown once ever per browser (not per session), and never mentions the
+// edit pathway -- it exists via the compass's center button, but per the
+// user's own call, it doesn't need to be actively promoted here. This is
+// purely the "don't trace over Street View" caveat.
+const STREETVIEW_NOTICE_KEY = "heightCoverageStreetViewNoticeShown";
+
+let activeCompass = null;
+
+function closeCompassMenu() {
+  if (activeCompass) {
+    activeCompass.remove();
+    activeCompass = null;
+  }
+}
+
+function showCompassMenu(map, e, { editable }) {
+  // The building-layer click handler runs before the document-level
+  // "click outside closes it" listener below -- stopping propagation here
+  // keeps the very click that opens the compass from also closing it.
+  e.originalEvent.stopPropagation();
+
+  if (!localStorage.getItem(STREETVIEW_NOTICE_KEY)) {
+    showStreetViewNotice(() => {
+      localStorage.setItem(STREETVIEW_NOTICE_KEY, "1");
+      openCompassMenu(map, e, { editable });
+    });
+  } else {
+    openCompassMenu(map, e, { editable });
+  }
+}
+
+// Buttons sit directly on the map around the click point rather than inside
+// a speech-bubble popup. Positioned with the viewport (not the map
+// container) as the coordinate space and appended to <body>, so the buttons
+// are never clipped by the map container's overflow:hidden even when the
+// click lands near an edge.
+function openCompassMenu(map, e, { editable }) {
+  closeCompassMenu();
+
   const [lon, lat] = e.lngLat.toArray();
-  const editUrl = `https://www.openstreetmap.org/edit?editor=id#map=19/${lat.toFixed(6)}/${lon.toFixed(6)}`;
+  const viewpoint = `${lat.toFixed(6)},${lon.toFixed(6)}`;
 
   // Plain Google Maps URL scheme -- no API key, no signature, no billing
   // (unlike the Street View Static API or JS Embed API, which require
-  // both). heading/pitch are deliberately omitted: without them, Google
-  // aims the panorama at the given coordinate from whatever the nearest
-  // available imagery is on its own, which is good enough for "go look at
-  // it" and avoids having to compute a bearing to the building ourselves.
-  const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}&fov=90`;
+  // both).
+  const streetViewUrl = (heading) =>
+    `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${viewpoint}&fov=90&heading=${heading}`;
 
-  // Nudge toward floor count (building:levels) rather than exact height in
-  // meters: counting storeys is something a surveyor can do by eye in the
-  // field, whereas measuring height in metres generally is not.
-  new maplibregl.Popup({ className: "osm-popup" })
-    .setLngLat(e.lngLat)
-    .setHTML(
-      `<h4>No height data yet</h4>
-       <p>This building has no height or floor-count info attributed to OpenStreetMap.</p>
-       <p>Tip: counting <strong>floors</strong> (<code>building:levels</code>) is usually
-       far easier to survey than measuring exact height in metres.</p>
-       <a class="edit-link" href="${editUrl}" target="_blank" rel="noopener">Add floor count in iD editor &rarr;</a>
-       <p class="streetview-row">
-         <a href="${escapeHtml(streetViewUrl)}" target="_blank" rel="noopener">View on Google Street View &#8599;</a>
-         <span class="streetview-note">Just for a look -- not a source to trace over for editing
-         (see OSM's <a href="https://wiki.openstreetmap.org/wiki/Google" target="_blank" rel="noopener">Google</a> wiki page and
-         Google's <a href="https://www.google.com/help/terms_maps/" target="_blank" rel="noopener">Maps/Street View terms</a>).</span>
-       </p>`
-    )
-    .addTo(map);
+  // MapLibre's bearing is the compass direction currently facing "up" on
+  // screen (0 when north-up). A screen-relative arrow (0 = up, 90 = right,
+  // ...) only points at the intended real-world direction once the map's
+  // own rotation is folded back in.
+  const bearing = map.getBearing();
+
+  const mapRect = map.getContainer().getBoundingClientRect();
+  const anchorX = mapRect.left + e.point.x;
+  const anchorY = mapRect.top + e.point.y;
+  const RADIUS = 42;
+
+  const menu = document.createElement("div");
+  menu.className = "sv-compass";
+  menu.style.left = `${anchorX}px`;
+  menu.style.top = `${anchorY}px`;
+
+  for (const dir of COMPASS_DIRECTIONS) {
+    const a = document.createElement("a");
+    a.className = "sv-compass-btn";
+    a.target = "_height_coverage_streetview";
+    a.rel = "noopener";
+
+    const heading = Math.round((dir.screenOffset + bearing + 360) % 360);
+    a.href = streetViewUrl(heading);
+    a.title = `Look ${dir.title.toLowerCase()}`;
+    a.textContent = dir.arrow;
+    const rad = (dir.screenOffset * Math.PI) / 180;
+    a.style.left = `${RADIUS * Math.sin(rad)}px`;
+    a.style.top = `${-RADIUS * Math.cos(rad)}px`;
+    menu.appendChild(a);
+  }
+
+  if (editable) {
+    const editUrl = `https://www.openstreetmap.org/edit?editor=id#map=19/${lat.toFixed(6)}/${lon.toFixed(6)}`;
+    const center = document.createElement("a");
+    center.className = "sv-compass-btn center";
+    center.target = "_blank";
+    center.rel = "noopener";
+    center.href = editUrl;
+    center.title = "Add floor count in iD editor";
+    center.textContent = "✎";
+    center.style.left = "0px";
+    center.style.top = "0px";
+    // vientiane-planning-map deliberately has no center button at all,
+    // precisely because a clickable element placed exactly under the
+    // cursor that opened the menu risks catching that same gesture's tail
+    // end. Here we still want the center button (it's the whole point of
+    // the redesign), so the mitigation instead of avoidance is to start it
+    // inert and only arm it a moment later, once the gesture that opened
+    // the compass has fully finished.
+    center.style.pointerEvents = "none";
+    setTimeout(() => {
+      center.style.pointerEvents = "auto";
+    }, 300);
+    menu.appendChild(center);
+  }
+
+  document.body.appendChild(menu);
+  activeCompass = menu;
+}
+
+document.addEventListener("click", (ev) => {
+  if (activeCompass && !activeCompass.contains(ev.target)) closeCompassMenu();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape") closeCompassMenu();
+});
+
+// A one-time modal, shown before the very first compass, instead of a
+// disclaimer crowding the ring on every click.
+function showStreetViewNotice(onAcknowledge) {
+  const overlay = document.createElement("div");
+  overlay.className = "sv-notice-overlay";
+  overlay.innerHTML = `
+    <div class="sv-notice-dialog">
+      <p>Google Street View links here are just for a look --<br>not a source to trace over for editing.</p>
+      <p class="sv-notice-links">
+        <a href="https://www.google.com/help/terms_maps/" target="_blank" rel="noopener">Google Maps/Street View terms</a>
+        &middot;
+        <a href="https://wiki.openstreetmap.org/wiki/Google" target="_blank" rel="noopener">OSM wiki: Google</a>
+      </p>
+      <button type="button" class="sv-notice-ok">OK</button>
+    </div>`;
+
+  const dismiss = () => {
+    overlay.remove();
+    document.removeEventListener("keydown", onKeydown);
+    onAcknowledge();
+  };
+  const onKeydown = (ev) => {
+    if (ev.key === "Escape" || ev.key === "Enter") dismiss();
+  };
+
+  overlay.addEventListener("click", (ev) => {
+    if (ev.target === overlay || ev.target.classList.contains("sv-notice-ok")) {
+      // Without this, the same click that dismisses the dialog and opens
+      // the compass keeps bubbling to the document-level "click outside
+      // closes the compass" listener above, which would then immediately
+      // close the compass this very click just opened.
+      ev.stopPropagation();
+      dismiss();
+    }
+  });
+  document.addEventListener("keydown", onKeydown);
+
+  document.body.appendChild(overlay);
 }
 
 // De-duplicated, viewport-scoped counts. This is only what's currently
