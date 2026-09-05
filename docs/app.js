@@ -180,19 +180,18 @@ async function main() {
     map.on("moveend", () => updateStats(map));
   });
 
-  // Compass opens on any building -- green/yellow/gray alike -- but only the
-  // yellow (unmapped) layer gets the center edit button, since floor-count
-  // editing is only meaningful for buildings that don't have it yet.
+  // Compass opens anywhere on the map, not just on a building: Street View
+  // is naturally viewed from the road, and OSM's road coverage is no more
+  // reliable than its building coverage -- gating the click on landing
+  // exactly on a road (or a building) would just recreate the same
+  // "waiting for someone to map it" problem this site is about. Only the
+  // center edit button stays scoped to a yellow (unmapped) building,
+  // since floor-count editing is only meaningful there.
   const BUILDING_LAYERS = ["buildings-input", "buildings-not-input", "buildings-non-osm"];
-  for (const layerId of BUILDING_LAYERS) {
-    map.on("click", layerId, (e) => showCompassMenu(map, e, { editable: layerId === "buildings-not-input" }));
-    map.on("mouseenter", layerId, () => {
-      map.getCanvas().style.cursor = "pointer";
-    });
-    map.on("mouseleave", layerId, () => {
-      map.getCanvas().style.cursor = "";
-    });
-  }
+  map.on("click", (e) => {
+    const feats = map.queryRenderedFeatures(e.point, { layers: ["buildings-not-input"] });
+    showCompassMenu(map, e, { editable: feats.length > 0 });
+  });
 
   // The compass menu's position is a one-time pixel snapshot, not tracked
   // against the map -- close it as soon as panning/zooming/rotating would

@@ -426,3 +426,38 @@ real links, 8 correct Street View headings (verified against
 building and not a green one, and all three close paths (outside click,
 Escape, `movestart`) — be checked directly rather than relying on code
 review alone.
+
+## 14. Open the compass on any map click, not just on a building
+
+#13 gated the compass's click handler on the three building layers
+(`map.on("click", layerId, ...)` per layer). Removed that restriction —
+the compass now opens on a single generic `map.on("click", ...)`,
+regardless of what's under the cursor.
+
+Reasoning: Street View is naturally viewed standing on a road, not on a
+building, so gating the click on landing exactly on a building was
+already the wrong surface for what the compass is *for*. The obvious fix
+— gate on landing on a road instead — doesn't hold up either: this site's
+entire premise is that OSM's coverage is incomplete, and that's just as
+true of road geometry as it is of building height/floor tags. Requiring
+an exact hit on whatever road polyline happens to be mapped (or not) would
+silently fail in exactly the areas this site cares about most. Anywhere
+on the map is the only surface that doesn't depend on OSM completeness to
+work.
+
+The center edit button keeps its narrower scope from #13 — it's still
+gated on the click resolving to a `buildings-not-input` (yellow) feature.
+That part isn't about viewing convenience: the edit button only means
+something when there's an unmapped building to edit, and if the click
+doesn't land on one, there's nothing for the OSM edit link to point at.
+Implemented as a single `queryRenderedFeatures(e.point, {layers:
+["buildings-not-input"]})` check inside the click handler, reusing the
+exact point-query idiom the hover-panel handler right below it already
+uses (see `docs/app.js`) — not a new pattern.
+
+Verification note: this session's embedded browser-preview tool went
+fully unresponsive (stuck on `isStyleLoaded() === false` across three
+fresh tabs) partway through this change, so this one was verified by code
+review rather than in-browser — the click handler reuses a query pattern
+already exercised and confirmed correct under #13, so the risk of this
+specific change is low.
